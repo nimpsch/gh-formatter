@@ -1,33 +1,73 @@
-# Reusable Workflow
-name: Reusable Deploy Workflow
+# Reusable workflow (workflow_call) demonstrating typed inputs, secrets,
+# outputs, and conditional steps. Call it from another workflow with
+# `uses: ./.github/workflows/reusable_workflow_example.yml`.
+name: Reusable Deploy
+
 on:
   workflow_call:
     inputs:
       target-env:
-        description: The environment to deploy to
+        description: "The environment to deploy to"
         required: true
         type: string
+      image-tag:
+        description: "Container image tag to deploy"
+        required: false
+        default: "latest"  # callers usually pass the commit SHA
+        type: string
       dry-run:
-        description: Do not perform actual deploy
+        description: "Skip the actual deploy and only log actions"
         required: false
         default: false
         type: boolean
+      timeout-minutes:
+        description: "Maximum minutes to wait for the deploy"
+        required: false
+        default: 15
+        type: number
+    secrets:
+      # Required: the caller must pass a token; this workflow never hardcodes it.
+      deploy-token:
+        description: "Token used to authenticate against the target"
+        required: true
     outputs:
-      deploy_status:
-        description: Status of the deployment
-        value: ${{ jobs.deploy.outputs.status }}
+      deploy-url:
+        description: "Public URL of the deployed environment"
+        value: "${{ jobs.deploy.outputs.url }}"
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
+    name: Deploy
     runs-on: ubuntu-latest
+    environment: "${{ inputs.target-env }}"
     outputs:
-      status: ${{ steps.step_deploy.outputs.status }}
+      url: "${{ steps.publish.outputs.url }}"
+    timeout-minutes: "${{ inputs.timeout-minutes }}"
     steps:
-    - name: Perform Deploy
-      id: step_deploy
-      run: |
-        echo "Deploying to ${{ inputs.target-env }}"
-        if [ "${{ inputs.dry-run }}" = "true" ]; then
-          echo "Dry run complete"
-        fi
-        echo "status=success" >> $GITHUB_OUTPUT
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Fail fast on bad input rather than deploying to the wrong place.
+      - name: Validate inputs
+        if: ${{ inputs.target-env == '' }}  # guard against empty env
+        run: |
+          echo "target-env must not be empty" >&2
+          exit 1
+        shell: bash
+
+      - name: Publish
+        id: publish
+        run: |
+          if [ "${{ inputs.dry-run }}" = "true" ]; then
+            echo "Dry run: would deploy ${IMAGE_TAG} to ${{ inputs.target-env }}"
+          else
+            echo "Deploying ${IMAGE_TAG} to ${{ inputs.target-env }}"
+          fi
+          echo "url=https://${{ inputs.target-env }}.example.com" >> "$GITHUB_OUTPUT"
+        env:
+          DEPLOY_TOKEN: "${{ secrets.deploy-token }}"
+          IMAGE_TAG: "${{ inputs.image-tag }}"
+        shell: bash

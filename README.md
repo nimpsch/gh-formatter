@@ -13,6 +13,8 @@ A powerful and customizable formatting tool for GitHub Actions and Workflows. Au
 - **Customizable Rules**: Apply custom formatting rules including:
   - Key ordering
   - List style standardization
+  - List indentation
+  - Quote style normalization (single/double)
   - Name capitalization
   - Job naming conventions
   - Input naming conventions
@@ -124,8 +126,11 @@ from an explicit `--config` path. All options are optional; defaults shown:
 ```yaml
 # Indentation
 indent: 2            # general mapping indentation
-sequence_indent: 2   # indentation of list item content
-sequence_offset: 0   # indentation of the list dash (must be < sequence_indent)
+sequence_indent: 4   # indentation of list item content
+sequence_offset: 2   # indentation of the list dash (must be < sequence_indent)
+                     # default indents list items one level under their key:
+                     #   steps:
+                     #     - name: ...
 
 # Naming conventions ("dash-case" or "snake_case")
 input_casing: dash-case
@@ -136,6 +141,10 @@ preserve_uppercase_names: false
 
 # Line endings: "preserve" (default) or "lf"
 line_endings: preserve
+
+# Quote style for already-quoted scalars: "double" (default), "single",
+# or "preserve". Plain unquoted values are never force-quoted.
+quote_style: double
 
 # Trigger filter lists under `on:` (branches, tags, paths, ...)
 list_style: block    # "block" (- a) or "flow" ([a, b])

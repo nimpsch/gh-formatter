@@ -10,11 +10,15 @@ from ruamel.yaml import YAML
 VALID_CASINGS = ("dash-case", "snake_case")
 VALID_LIST_STYLES = ("flow", "block")
 VALID_LINE_ENDINGS = ("preserve", "lf")
+VALID_QUOTE_STYLES = ("preserve", "single", "double")
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "indent": 2,
-    "sequence_indent": 2,  # Indentation for list items
-    "sequence_offset": 0,  # Dash offset for list items
+    # List items are indented one level under their key, with the dash
+    # offset two spaces in (steps:\n  - name: ...) rather than sitting
+    # flush under the key.
+    "sequence_indent": 4,  # Indentation for list item content
+    "sequence_offset": 2,  # Dash offset for list items
     # "dash-case" (e.g. my-input) or "snake_case" (e.g. my_input)
     "input_casing": "dash-case",
     "job_casing": "snake_case",
@@ -25,6 +29,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # "preserve" keeps each file's existing line endings; "lf" rewrites
     # every formatted file with Unix line endings.
     "line_endings": "preserve",
+    # Quote style for already-quoted scalars: "double" (default) and
+    # "single" normalize every quoted scalar to that character; "preserve"
+    # leaves each scalar's existing quoting untouched. Plain (unquoted)
+    # scalars are never force-quoted.
+    "quote_style": "double",
     # "flow" ([a, b]) or "block" (- a\n- b)
     "list_style": "block",
     "blank_line_between_steps": True,
@@ -85,13 +94,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "key_order_step": [
         "name",
         "id",
+        "if",
         "uses",
         "run",
         "with",
         "env",
         "timeout-minutes",
         "continue-on-error",
-        "if",
         "shell",
         "working-directory",
     ],
@@ -147,6 +156,9 @@ class Config:
         )
         self.line_endings = _require_choice(
             merged, "line_endings", VALID_LINE_ENDINGS
+        )
+        self.quote_style = _require_choice(
+            merged, "quote_style", VALID_QUOTE_STYLES
         )
         self.list_style = _require_choice(
             merged, "list_style", VALID_LIST_STYLES

@@ -122,7 +122,7 @@ jobs:
       - run: echo deploy
 """
     formatted, _ = fmt(engine, workflow)
-    assert "run: echo 1\n\n    - name: Two" in formatted
+    assert "run: echo 1\n\n      - name: Two" in formatted
     assert "run: echo 2\n\n  deploy:" in formatted
 
 
@@ -145,9 +145,9 @@ jobs:
 """
     formatted, _ = fmt(engine, workflow)
     # script content is untouched (no blank lines between the fake items)
-    assert "- fake: item\n        - other: item" in formatted
+    assert "- fake: item\n          - other: item" in formatted
     # but real steps are separated
-    assert "EOF\n\n    - name: Second" in formatted
+    assert "EOF\n\n      - name: Second" in formatted
 
 
 def test_blank_lines_can_be_disabled(engine):
@@ -395,6 +395,71 @@ jobs:
     # ruamel keeps the comment at its original column; what matters is the
     # blank line lands above the comment, not between comment and step.
     assert (
-        "echo 1\n\n      # explains the second step\n    - run: echo 2"
+        "echo 1\n\n      # explains the second step\n      - run: echo 2"
         in formatted
     )
+
+
+def _reparses(text):
+    from gh_formatter.utils import load_yaml
+
+    load_yaml(text)  # raises on invalid YAML
+    return True
+
+
+def test_reordering_step_keys_preserves_comments(engine):
+    """Reordering keys must never corrupt a step or drop its comments."""
+    workflow = """name: ci  # the workflow
+jobs:
+  build:
+    # what this job does
+    runs-on: ubuntu-latest  # the runner
+    steps:
+      - run: echo hi  # inline on run
+        name: do thing
+      - name: second
+        # explains the uses below
+        uses: actions/checkout@v4
+        if: ${{ success() }}  # gate it
+"""
+    formatted, _ = fmt(engine, workflow)
+    # Output is valid YAML (the bug used to merge two keys onto one line).
+    assert _reparses(formatted)
+    # Every comment survives.
+    for comment in (
+        "# the workflow",
+        "# what this job does",
+        "# the runner",
+        "# inline on run",
+        "# explains the uses below",
+        "# gate it",
+    ):
+        assert comment in formatted
+    # End-of-line comments stay attached to their own line.
+    assert "echo hi  # inline on run" in formatted
+    assert "if: ${{ success() }}  # gate it" in formatted
+    # Re-running the formatter is a no-op (single-pass idempotent).
+    assert engine.format_string(formatted, _context()) == formatted
+
+
+def test_comment_before_reordered_first_key_lifted_above_step(engine):
+    """A comment before a key that sorts first moves above the step's dash."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+        # TODO: tidy this up
+        name: do thing
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert _reparses(formatted)
+    assert "# TODO: tidy this up" in formatted
+    # The comment sits above the dash, never on the empty dash line.
+    assert "-\n" not in formatted
+    assert engine.format_string(formatted, _context()) == formatted
+
+
+def _context():
+    return Context(".github/workflows/ci.yml", Config())

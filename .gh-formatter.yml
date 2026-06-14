@@ -10,20 +10,21 @@
 # Recommended values: 2 or 4
 indent: 2
 
-# Number of spaces to indent sequence (list) items (default: 2)
-# Controls indentation of list content inside a sequence
-sequence_indent: 2
+# Number of spaces to indent sequence (list) item content (default: 4)
+# Must be greater than sequence_offset.
+sequence_indent: 4
 
-# Offset for the dash in sequence items (default: 0)
-# 0: dash starts at the indentation level
-# 2: dash is offset by 2 spaces
-# Example with sequence_offset: 0:
-#   - item1
-#   - item2
-# Example with sequence_offset: 2:
-#     - item1
-#     - item2
-sequence_offset: 0
+# Indentation of the dash in sequence items (default: 2)
+# Controls how far the `-` is indented relative to its parent key.
+# Example with sequence_offset: 2 (default), sequence_indent: 4:
+#   steps:
+#     - name: item1
+#     - name: item2
+# Example with sequence_offset: 0, sequence_indent: 2:
+#   steps:
+#   - name: item1
+#   - name: item2
+sequence_offset: 2
 
 
 # NAMING CONVENTIONS
@@ -56,6 +57,19 @@ preserve_uppercase_names: false
 # Options: "preserve" (keep each file's existing endings) or "lf" (Unix)
 # Default: "preserve"
 line_endings: "preserve"
+
+
+# QUOTE STYLE
+# ===========
+
+# Quote character to enforce on already-quoted scalars.
+# Options: "double", "single", or "preserve"
+#   double:   normalize every quoted scalar to "..."  (default)
+#   single:   normalize every quoted scalar to '...'
+#   preserve: leave each scalar's existing quoting untouched
+# Plain (unquoted) values are never force-quoted, and ruamel falls back
+# to double quoting when a value cannot be single-quoted safely.
+quote_style: "double"
 
 
 # LIST FORMATTING STYLE
@@ -163,12 +177,12 @@ key_order_job:
 key_order_step:
   - name
   - id
+  - if
   - uses
   - run
   - with
   - env
   - timeout-minutes
   - continue-on-error
-  - if
   - shell
   - working-directory

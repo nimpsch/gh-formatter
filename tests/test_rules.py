@@ -116,6 +116,84 @@ jobs:
     assert "my-job" not in formatted
 
 
+def test_quote_style_normalizes_to_double(engine):
+    workflow = """name: 'CI Workflow'
+on:
+  push:
+    branches: ['main', 'dev']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FOO: 'bar'
+    steps:
+      - run: echo hi
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert 'name: "CI Workflow"' in formatted
+    assert 'FOO: "bar"' in formatted
+    assert '"main"' in formatted and '"dev"' in formatted
+    # plain unquoted scalars are never force-quoted
+    assert "runs-on: ubuntu-latest" in formatted
+    assert "run: echo hi" in formatted
+
+
+def test_quote_style_normalizes_to_single(engine):
+    workflow = """name: "CI Workflow"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FOO: "bar"
+    steps:
+      - run: echo hi
+"""
+    context = Context(
+        ".github/workflows/ci.yml", Config({"quote_style": "single"})
+    )
+    formatted = engine.format_string(workflow, context)
+
+    assert "name: 'CI Workflow'" in formatted
+    assert "FOO: 'bar'" in formatted
+
+
+def test_quote_style_preserve_leaves_quotes(engine):
+    workflow = """name: 'CI Workflow'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FOO: "bar"
+"""
+    context = Context(
+        ".github/workflows/ci.yml", Config({"quote_style": "preserve"})
+    )
+    formatted = engine.format_string(workflow, context)
+
+    assert "name: 'CI Workflow'" in formatted
+    assert 'FOO: "bar"' in formatted
+
+
+def test_quote_style_keeps_block_scalars(engine):
+    """A `run: |` block must never be turned into a quoted scalar."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "hello"
+          echo "world"
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert "run: |" in formatted
+    assert '        echo "hello"' in formatted
+
+
 def test_style_trim_and_boolean(engine):
     workflow_yaml = """
 name: Workflow
