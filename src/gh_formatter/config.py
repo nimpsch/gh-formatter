@@ -269,7 +269,7 @@ def _require_int(data: dict[str, Any], key: str, minimum: int) -> int:
         raise ConfigError(f"'{key}' must be an integer, got {value!r}.")
     if value < minimum:
         raise ConfigError(f"'{key}' must be >= {minimum}, got {value}.")
-    return value
+    return int(value)
 
 
 def _require_bool(data: dict[str, Any], key: str) -> bool:

@@ -1,7 +1,6 @@
 """Tests for cross-file input rename propagation (uses: ./... callers)."""
 
 import pytest
-
 from gh_formatter.cli import process_file
 from gh_formatter.config import Config
 from gh_formatter.engine import Engine

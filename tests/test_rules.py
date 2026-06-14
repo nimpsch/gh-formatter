@@ -1,5 +1,4 @@
 import pytest
-
 from gh_formatter.config import Config
 from gh_formatter.context import Context
 from gh_formatter.engine import Engine
@@ -204,8 +203,8 @@ jobs:
     steps:
       - name: Trim space
         run: |
-          echo "Hello"   
-          echo "World"  
+          echo "Hello"
+          echo "World"
 """
     context = Context(".github/workflows/workflow.yml", Config())
     formatted = engine.format_string(workflow_yaml, context)

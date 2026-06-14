@@ -1,5 +1,4 @@
 import pytest
-
 from gh_formatter.config import Config, ConfigError
 
 

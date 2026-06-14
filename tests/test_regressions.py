@@ -1,7 +1,6 @@
 """Regression tests for bugs found during the refactoring."""
 
 import pytest
-
 from gh_formatter.config import Config
 from gh_formatter.context import Context
 from gh_formatter.engine import Engine
