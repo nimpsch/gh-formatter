@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+- name: Question or discussion
+  url: https://github.com/nimpsch/gh_formatter/discussions
+  about: >
+    Ask a question or discuss an idea. For bugs and concrete feature
+    requests, please use the issue templates instead.

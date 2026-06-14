@@ -1,0 +1,91 @@
+name: Bug report
+description: Report incorrect or unexpected formatting behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for taking the time to report a bug! A minimal reproduction
+      makes fixing it dramatically faster.
+
+- type: textarea
+  id: what-happened
+  attributes:
+    label: What happened?
+    description: A clear description of the bug.
+    placeholder: gh-formatter changed X into Y, but it should have ...
+  validations:
+    required: true
+
+- type: textarea
+  id: input-yaml
+  attributes:
+    label: Input YAML
+    description: >
+      The smallest workflow/action snippet that reproduces the problem.
+      This will be rendered as YAML, no backticks needed.
+    render: yaml
+    placeholder: |
+      name: ci
+      on: push
+      jobs:
+        build:
+          runs-on: ubuntu-latest
+  validations:
+    required: true
+
+- type: textarea
+  id: command
+  attributes:
+    label: Command
+    description: The exact command you ran.
+    render: shell
+    placeholder: gh-formatter .github/workflows/ci.yml
+  validations:
+    required: true
+
+- type: textarea
+  id: expected
+  attributes:
+    label: Expected output
+    description: What you expected gh-formatter to produce.
+    render: yaml
+  validations:
+    required: true
+
+- type: textarea
+  id: actual
+  attributes:
+    label: Actual output
+    description: What gh-formatter actually produced.
+    render: yaml
+  validations:
+    required: true
+
+- type: textarea
+  id: config
+  attributes:
+    label: Configuration
+    description: >
+      Your `.gh-formatter.yml` / `[tool.gh-formatter]` config, if any.
+    render: yaml
+  validations:
+    required: false
+
+- type: input
+  id: version
+  attributes:
+    label: gh-formatter version
+    description: Output of `pip show gh-formatter` (the Version line).
+    placeholder: 0.1.0
+  validations:
+    required: true
+
+- type: input
+  id: python-version
+  attributes:
+    label: Python version
+    placeholder: "3.12"
+  validations:
+    required: true

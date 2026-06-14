@@ -1,0 +1,33 @@
+# Reusable Workflow
+name: Reusable Deploy Workflow
+on:
+  workflow_call:
+    inputs:
+      target-env:
+        description: The environment to deploy to
+        required: true
+        type: string
+      dry-run:
+        description: Do not perform actual deploy
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      deploy_status:
+        description: Status of the deployment
+        value: ${{ jobs.deploy.outputs.status }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.step_deploy.outputs.status }}
+    steps:
+    - name: Perform Deploy
+      id: step_deploy
+      run: |
+        echo "Deploying to ${{ inputs.target-env }}"
+        if [ "${{ inputs.dry-run }}" = "true" ]; then
+          echo "Dry run complete"
+        fi
+        echo "status=success" >> $GITHUB_OUTPUT
