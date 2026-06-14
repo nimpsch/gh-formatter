@@ -24,6 +24,7 @@ A powerful and customizable formatting tool for GitHub Actions and Workflows. Au
   - `--check`: Dry-run mode to verify formatting without making changes
   - `--diff`: Show unified diff of what would be changed
 - **Custom Configuration**: Support for custom configuration files to enforce your team's style guide
+- **Inline Disable Directives**: Exempt a whole file, a region, or a single line with `# gh-formatter:disable[-file|-line]` / `:enable`
 - **Recursive Discovery**: Automatically finds all workflow and action files in your project
 
 ## Installation
@@ -116,6 +117,45 @@ See every available rule and post-processor (and its id, used for toggling):
 ```bash
 gh-formatter --list-rules
 ```
+
+## Disabling formatting with inline directives
+
+Sometimes a file (or a few lines) is formatted intentionally and you want
+gh-formatter to leave it alone. Add a YAML comment directive (yamllint-style):
+
+| Directive | Effect |
+|-----------|--------|
+| `# gh-formatter:disable-file` | Skip the entire file. |
+| `# gh-formatter:disable` … `# gh-formatter:enable` | Skip every line in the region between the two directives. |
+| `# gh-formatter:disable-line` | Skip the line the directive trails, or — when it sits on its own line — the next line. |
+
+```yaml
+# gh-formatter:disable-file   # nothing in this file is touched
+
+name: ci
+on: push
+jobs:
+  # gh-formatter:disable
+  keepThisExactly:        # name, order and quotes are all preserved
+    runs-on: ubuntu-latest
+  # gh-formatter:enable
+
+  normal_job:             # formatted normally
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo hi
+        legacyInput: x    # gh-formatter:disable-line  (left untouched)
+```
+
+A disabled key/step/region is exempt from every rule: renaming, key
+ordering, name capitalization, list style, quote normalization, and
+whitespace cleanup. Renames are also suppressed across files, so a frozen
+reusable-workflow input is not rewritten in its callers.
+
+Because gh-formatter parses and re-emits the document, the **base
+indentation still applies** even inside a disabled region — directives turn
+off the content rules, not the YAML serializer.
 
 ## Configuration
 

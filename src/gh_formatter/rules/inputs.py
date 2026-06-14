@@ -50,16 +50,28 @@ def plan_input_renames(data: CommentedMap, context: Context) -> dict[str, str]:
     """
     renames: dict[str, str] = {}
     for inputs_map in find_input_maps(data, context):
-        renames.update(
-            compute_safe_renames(
-                list(inputs_map.keys()),
-                context.config.input_casing,
-                context,
-                "input",
-                preserve_uppercase=context.config.preserve_uppercase_names,
-            )
-        )
+        if context.is_ignored(inputs_map):
+            continue
+        renames.update(_renames_for_inputs_map(inputs_map, context))
     return renames
+
+
+def _renames_for_inputs_map(
+    inputs_map: CommentedMap, context: Context
+) -> dict[str, str]:
+    """Safe renames for one inputs map, skipping directive-frozen keys."""
+    renames = compute_safe_renames(
+        list(inputs_map.keys()),
+        context.config.input_casing,
+        context,
+        "input",
+        preserve_uppercase=context.config.preserve_uppercase_names,
+    )
+    return {
+        old: new
+        for old, new in renames.items()
+        if not context.is_frozen(inputs_map, old)
+    }
 
 
 class InputNamingRule(BaseRule):
@@ -76,13 +88,9 @@ class InputNamingRule(BaseRule):
 
     def apply(self, data: CommentedMap, context: Context) -> None:
         for inputs_map in find_input_maps(data, context):
-            renames = compute_safe_renames(
-                list(inputs_map.keys()),
-                context.config.input_casing,
-                context,
-                "input",
-                preserve_uppercase=context.config.preserve_uppercase_names,
-            )
+            if context.is_ignored(inputs_map):
+                continue
+            renames = _renames_for_inputs_map(inputs_map, context)
             if not renames:
                 continue
 

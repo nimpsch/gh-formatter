@@ -3,6 +3,7 @@
 from ruamel.yaml.comments import CommentedMap
 
 from gh_formatter.context import Context
+from gh_formatter.directives import mark_disabled_nodes, scan_disabled
 from gh_formatter.postprocess import BasePostProcessor, BlankLinesProcessor
 from gh_formatter.rules.base import BaseRule
 from gh_formatter.rules.callers import CallerInputNamingRule
@@ -61,11 +62,18 @@ class Engine:
         if not content.strip():
             return content
 
+        # A whole-file directive short-circuits every rule.
+        disable_file, disabled_lines = scan_disabled(content)
+        if disable_file:
+            return content
+
         data = load_yaml(content)
 
         # If root is not a mapping (empty or unusual file), leave it alone.
         if not isinstance(data, CommentedMap):
             return content
+
+        mark_disabled_nodes(data, disabled_lines, context)
 
         config = context.config
 

@@ -29,10 +29,35 @@ class Context:
         # Set by the CLI for cross-file rename propagation; None when
         # formatting a file in isolation.
         self.project_plan: ProjectPlan | None = None
+        # Populated from inline directives (see directives.py): keys/nodes a
+        # developer asked the formatter to leave alone. Keyed by object id so
+        # they survive the in-place mutations the rules perform.
+        self.frozen_keys: dict[int, set[str]] = {}
+        self.ignored_ids: set[int] = set()
 
     def add_warning(self, message: str) -> None:
         """Records a warning to be surfaced to the user."""
         self.warnings.append(message)
+
+    def freeze_key(self, mapping: object, key: str) -> None:
+        """Marks a key as exempt from renaming, reordering, and reformatting."""
+        self.frozen_keys.setdefault(id(mapping), set()).add(key)
+
+    def is_frozen(self, mapping: object, key: str) -> bool:
+        """Whether this key was disabled via an inline directive."""
+        return key in self.frozen_keys.get(id(mapping), ())
+
+    def has_frozen_keys(self, mapping: object) -> bool:
+        """Whether any key of this mapping was disabled."""
+        return bool(self.frozen_keys.get(id(mapping)))
+
+    def ignore_node(self, node: object) -> None:
+        """Marks a whole node (and its subtree) as exempt from formatting."""
+        self.ignored_ids.add(id(node))
+
+    def is_ignored(self, node: object) -> bool:
+        """Whether this node was disabled via an inline directive."""
+        return id(node) in self.ignored_ids
 
     def _detect_file_type(self) -> FileType:
         if not self.file_path:
