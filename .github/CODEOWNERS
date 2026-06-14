@@ -1,0 +1,10 @@
+# Code owners for gh_formatter
+#
+# The owner(s) listed here are automatically requested for review on every PR
+# and — combined with the "Require review from Code Owners" branch ruleset —
+# are the ONLY accounts whose approval can satisfy the required review.
+#
+# Keep this list to the repository admin(s) only. Anyone added here who also
+# has Write access can approve & merge, so do not add external contributors.
+
+* @nimpsch
