@@ -5,7 +5,7 @@ import sys
 def test_cli_help():
     # Run CLI with --help to check that it displays usage information
     result = subprocess.run(
-        [sys.executable, "-m", "gh-formatter.cli", "--help"],
+        [sys.executable, "-m", "gh_formatter.cli", "--help"],
         capture_output=True,
         text=True,
     )
@@ -37,7 +37,7 @@ name: Workflow
         [
             sys.executable,
             "-m",
-            "gh-formatter.cli",
+            "gh_formatter.cli",
             str(workflow_file),
             "--check",
         ],
@@ -49,7 +49,7 @@ name: Workflow
 
     # Run actual format
     result_format = subprocess.run(
-        [sys.executable, "-m", "gh-formatter.cli", str(workflow_file)],
+        [sys.executable, "-m", "gh_formatter.cli", str(workflow_file)],
         capture_output=True,
         text=True,
     )
@@ -61,7 +61,7 @@ name: Workflow
         [
             sys.executable,
             "-m",
-            "gh-formatter.cli",
+            "gh_formatter.cli",
             str(workflow_file),
             "--check",
         ],

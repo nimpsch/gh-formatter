@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh-formatter.context import Context
+from gh_formatter.context import Context
 
 
 class BaseRule(ABC):

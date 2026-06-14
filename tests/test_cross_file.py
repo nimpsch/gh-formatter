@@ -2,10 +2,10 @@
 
 import pytest
 
-from gh-formatter.cli import process_file
-from gh-formatter.config import Config
-from gh-formatter.engine import Engine
-from gh-formatter.project import (
+from gh_formatter.cli import process_file
+from gh_formatter.config import Config
+from gh_formatter.engine import Engine
+from gh_formatter.project import (
     build_project_plan,
     find_repo_root,
     resolve_local_uses,

@@ -189,7 +189,7 @@ class Config:
                 raise ConfigError(f"Config file not found: {config_path}")
             return cls(cls._load_file(config_path))
 
-        defaults = [".gh-formatter.yml", ".gh-formatter.yaml", "pyproject.toml"]
+        defaults = [".gh_formatter.yml", ".gh_formatter.yaml", "pyproject.toml"]
         for path in defaults:
             if os.path.exists(path):
                 data = cls._load_file(path)
@@ -206,10 +206,10 @@ class Config:
 
                 with open(path, "rb") as f:
                     toml_data = tomllib.load(f)
-                # Config resides under [tool.gh-formatter]
+                # Config resides under [tool.gh_formatter]
                 return cast(
                     "dict[str, Any] | None",
-                    toml_data.get("tool", {}).get("gh-formatter"),
+                    toml_data.get("tool", {}).get("gh_formatter"),
                 )
 
             yaml = YAML(typ="safe")

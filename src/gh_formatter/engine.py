@@ -2,17 +2,17 @@
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh-formatter.context import Context
-from gh-formatter.postprocess import BasePostProcessor, BlankLinesProcessor
-from gh-formatter.rules.base import BaseRule
-from gh-formatter.rules.callers import CallerInputNamingRule
-from gh-formatter.rules.inputs import InputNamingRule
-from gh-formatter.rules.jobs import JobNamingRule
-from gh-formatter.rules.keys import KeyOrderingRule
-from gh-formatter.rules.lists import ListStyleRule
-from gh-formatter.rules.names import CapitalizeNamesRule
-from gh-formatter.rules.style import StyleRule
-from gh-formatter.utils import dump_yaml, load_yaml
+from gh_formatter.context import Context
+from gh_formatter.postprocess import BasePostProcessor, BlankLinesProcessor
+from gh_formatter.rules.base import BaseRule
+from gh_formatter.rules.callers import CallerInputNamingRule
+from gh_formatter.rules.inputs import InputNamingRule
+from gh_formatter.rules.jobs import JobNamingRule
+from gh_formatter.rules.keys import KeyOrderingRule
+from gh_formatter.rules.lists import ListStyleRule
+from gh_formatter.rules.names import CapitalizeNamesRule
+from gh_formatter.rules.style import StyleRule
+from gh_formatter.utils import dump_yaml, load_yaml
 
 
 def default_rules() -> list[BaseRule]:

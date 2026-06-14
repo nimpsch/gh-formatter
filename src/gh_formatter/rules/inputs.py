@@ -5,14 +5,14 @@ from functools import partial
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh-formatter.casing import compute_safe_renames
-from gh-formatter.context import Context
-from gh-formatter.references import (
+from gh_formatter.casing import compute_safe_renames
+from gh_formatter.context import Context
+from gh_formatter.references import (
     replace_expression_references,
     transform_strings_in_place,
 )
-from gh-formatter.rules.base import BaseRule
-from gh-formatter.utils import get_map, rename_commented_map_keys
+from gh_formatter.rules.base import BaseRule
+from gh_formatter.utils import get_map, rename_commented_map_keys
 
 # Expression prefixes under which inputs are referenced.
 INPUT_REFERENCE_PREFIXES = ("inputs", "github.event.inputs")

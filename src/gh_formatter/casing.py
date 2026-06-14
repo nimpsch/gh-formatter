@@ -2,7 +2,7 @@
 
 import re
 
-from gh-formatter.context import Context
+from gh_formatter.context import Context
 
 # Split camelCase/PascalCase at word boundaries; keeps acronyms intact
 # (myURLInput -> my-URL-Input, not my-U-R-L-Input).

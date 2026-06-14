@@ -4,10 +4,10 @@ from pathlib import Path
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh-formatter.context import Context
-from gh-formatter.project import ProjectPlan, find_repo_root, resolve_local_uses
-from gh-formatter.rules.base import BaseRule
-from gh-formatter.utils import get_map, get_seq, rename_commented_map_keys
+from gh_formatter.context import Context
+from gh_formatter.project import ProjectPlan, find_repo_root, resolve_local_uses
+from gh_formatter.rules.base import BaseRule
+from gh_formatter.utils import get_map, get_seq, rename_commented_map_keys
 
 
 class CallerInputNamingRule(BaseRule):

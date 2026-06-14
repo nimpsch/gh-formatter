@@ -1,8 +1,8 @@
 import pytest
 
-from gh-formatter.config import Config
-from gh-formatter.context import Context
-from gh-formatter.engine import Engine
+from gh_formatter.config import Config
+from gh_formatter.context import Context
+from gh_formatter.engine import Engine
 
 
 @pytest.fixture
