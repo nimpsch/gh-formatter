@@ -52,13 +52,13 @@ Issues = "https://github.com/nimpsch/gh-formatter/issues"
 Changelog = "https://github.com/nimpsch/gh-formatter/releases"
 
 [project.scripts]
-gh-formatter = "gh-formatter.cli:main"
+gh-formatter = "gh_formatter.cli:main"
 
 [tool.hatch.version]
-path = "src/gh-formatter/__init__.py"
+path = "src/gh_formatter/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gh-formatter"]
+packages = ["src/gh_formatter"]
 
 [tool.black]
 line-length = 80

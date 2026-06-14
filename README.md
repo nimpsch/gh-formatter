@@ -270,7 +270,7 @@ pytest
 ```
 gh-formatter/
 ├── src/
-│   └── gh-formatter/
+│   └── gh_formatter/
 │       ├── cli.py           # Command-line interface
 │       ├── casing.py        # Casing conversion + safe rename planning
 │       ├── config.py        # Configuration loading and validation
