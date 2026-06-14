@@ -23,10 +23,11 @@ For formatting changes, a before/after YAML example is very helpful.
 
 ## Checklist
 
+<!--
+No need to tick off formatting, linting, type-checking, or test runs:
+CI runs black, ruff, mypy, pytest, and yamllint (via pre-commit) on every PR.
+-->
+
 - [ ] Tests added or updated (bug fixes include a regression test)
-- [ ] `black --check src/ tests/` passes
-- [ ] `ruff check src/ tests/` passes
-- [ ] `mypy src/` passes
-- [ ] `pytest` passes
 - [ ] Docs updated (README / `.gh-formatter.yml`) if behavior or options changed
 - [ ] This PR is one focused change
