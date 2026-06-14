@@ -10,7 +10,7 @@ version only. Please upgrade to the newest release before reporting an issue.
 Please **do not** open a public issue for security problems.
 
 Instead, report privately via GitHub's
-[private vulnerability reporting](https://github.com/nimpsch/gh_formatter/security/advisories/new)
+[private vulnerability reporting](https://github.com/nimpsch/gh-formatter/security/advisories/new)
 ("Report a vulnerability" under the Security tab). If that is unavailable,
 contact the maintainer directly.
 

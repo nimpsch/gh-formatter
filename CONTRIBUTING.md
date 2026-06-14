@@ -39,7 +39,7 @@ You need **Python 3.11 or newer**.
 
 ```bash
 # Fork and clone, then:
-cd gh_formatter
+cd gh-formatter
 
 # Create and activate a virtual environment
 python -m venv .venv
@@ -68,7 +68,7 @@ new behavior and its edge cases.
 ## Project layout
 
 ```
-src/gh_formatter/
+src/gh-formatter/
   cli.py          # argument parsing + orchestration
   config.py       # configuration loading and validation
   context.py      # per-file context (file type, warnings, project plan)
@@ -91,7 +91,7 @@ post-processor.
 
 ## Adding a new rule
 
-1. Create a module in `src/gh_formatter/rules/` with a class that subclasses
+1. Create a module in `src/gh-formatter/rules/` with a class that subclasses
    `BaseRule`. Implement `id`, `description`, `should_run`, and `apply`.
 2. Register it in `default_rules()` in `engine.py` (order matters — rules
    run top to bottom).

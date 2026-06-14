@@ -4,9 +4,9 @@ from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import get_map
+from gh-formatter.context import Context
+from gh-formatter.rules.base import BaseRule
+from gh-formatter.utils import get_map
 
 
 class ListStyleRule(BaseRule):

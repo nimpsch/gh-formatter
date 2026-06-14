@@ -47,18 +47,18 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nimpsch/gh_formatter"
-Issues = "https://github.com/nimpsch/gh_formatter/issues"
-Changelog = "https://github.com/nimpsch/gh_formatter/releases"
+Homepage = "https://github.com/nimpsch/gh-formatter"
+Issues = "https://github.com/nimpsch/gh-formatter/issues"
+Changelog = "https://github.com/nimpsch/gh-formatter/releases"
 
 [project.scripts]
-gh-formatter = "gh_formatter.cli:main"
+gh-formatter = "gh-formatter.cli:main"
 
 [tool.hatch.version]
-path = "src/gh_formatter/__init__.py"
+path = "src/gh-formatter/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gh_formatter"]
+packages = ["src/gh-formatter"]
 
 [tool.black]
 line-length = 80

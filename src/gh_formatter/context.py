@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from gh_formatter.config import Config
+from gh-formatter.config import Config
 
 if TYPE_CHECKING:
-    from gh_formatter.project import ProjectPlan
+    from gh-formatter.project import ProjectPlan
 
 FileType = Literal["workflow", "action"]
 

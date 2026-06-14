@@ -8,11 +8,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from gh_formatter.config import Config, ConfigError
-from gh_formatter.context import Context
-from gh_formatter.discovery import find_yaml_files
-from gh_formatter.engine import Engine
-from gh_formatter.project import ProjectPlan, build_project_plan
+from gh-formatter.config import Config, ConfigError
+from gh-formatter.context import Context
+from gh-formatter.discovery import find_yaml_files
+from gh-formatter.engine import Engine
+from gh-formatter.project import ProjectPlan, build_project_plan
 
 
 class FileStatus(Enum):

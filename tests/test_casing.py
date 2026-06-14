@@ -1,4 +1,4 @@
-from gh_formatter.casing import format_casing
+from gh-formatter.casing import format_casing
 
 
 def test_camel_case():

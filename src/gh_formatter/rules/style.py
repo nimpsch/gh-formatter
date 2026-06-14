@@ -5,8 +5,8 @@ from typing import Any
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString, PreservedScalarString
 
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
+from gh-formatter.context import Context
+from gh-formatter.rules.base import BaseRule
 
 _BLOCK_SCALAR_TYPES = (LiteralScalarString, PreservedScalarString)
 

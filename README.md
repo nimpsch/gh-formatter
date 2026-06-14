@@ -1,6 +1,6 @@
 # gh-formatter
 
-[![CI](https://github.com/nimpsch/gh_formatter/actions/workflows/ci.yml/badge.svg)](https://github.com/nimpsch/gh_formatter/actions/workflows/ci.yml)
+[![CI](https://github.com/nimpsch/gh-formatter/actions/workflows/ci.yml/badge.svg)](https://github.com/nimpsch/gh-formatter/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/gh-formatter.svg)](https://pypi.org/project/gh-formatter/)
 [![Python versions](https://img.shields.io/pypi/pyversions/gh-formatter.svg)](https://pypi.org/project/gh-formatter/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -35,8 +35,8 @@ pip install gh-formatter
 ### From Source
 
 ```bash
-git clone https://github.com/nimpsch/gh_formatter.git
-cd gh_formatter
+git clone https://github.com/nimpsch/gh-formatter.git
+cd gh-formatter
 pip install -e .
 ```
 
@@ -46,7 +46,7 @@ Add this to your `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
-- repo: https://github.com/nimpsch/gh_formatter
+- repo: https://github.com/nimpsch/gh-formatter
   rev: v0.1.0  # use the latest release tag
   hooks:
   - id: gh-formatter
@@ -231,8 +231,8 @@ See the `examples/` directory for sample workflow and action files:
 
 ```bash
 # Clone the repository
-git clone https://github.com/nimpsch/gh_formatter.git
-cd gh_formatter
+git clone https://github.com/nimpsch/gh-formatter.git
+cd gh-formatter
 
 # Create a virtual environment
 python -m venv .venv
@@ -268,9 +268,9 @@ pytest
 ## Project Structure
 
 ```
-gh_formatter/
+gh-formatter/
 ├── src/
-│   └── gh_formatter/
+│   └── gh-formatter/
 │       ├── cli.py           # Command-line interface
 │       ├── casing.py        # Casing conversion + safe rename planning
 │       ├── config.py        # Configuration loading and validation

@@ -14,10 +14,10 @@ from pathlib import Path
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh_formatter.config import Config
-from gh_formatter.context import Context
-from gh_formatter.rules.inputs import plan_input_renames
-from gh_formatter.utils import load_yaml
+from gh-formatter.config import Config
+from gh-formatter.context import Context
+from gh-formatter.rules.inputs import plan_input_renames
+from gh-formatter.utils import load_yaml
 
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 

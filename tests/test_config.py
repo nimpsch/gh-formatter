@@ -1,6 +1,6 @@
 import pytest
 
-from gh_formatter.config import Config, ConfigError
+from gh-formatter.config import Config, ConfigError
 
 
 def test_defaults():

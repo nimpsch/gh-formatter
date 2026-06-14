@@ -2,9 +2,9 @@
 
 import pytest
 
-from gh_formatter.config import Config
-from gh_formatter.context import Context
-from gh_formatter.engine import Engine
+from gh-formatter.config import Config
+from gh-formatter.context import Context
+from gh-formatter.engine import Engine
 
 
 @pytest.fixture
@@ -207,7 +207,7 @@ runs:
 
 def test_write_failure_reported_as_error(tmp_path):
     """A file that cannot be written must be reported as an error."""
-    from gh_formatter.cli import FileStatus, process_file
+    from gh-formatter.cli import FileStatus, process_file
 
     target = tmp_path / ".github" / "workflows"
     target.mkdir(parents=True)
@@ -309,7 +309,7 @@ jobs:
 
 
 def test_crlf_line_endings_preserved(tmp_path):
-    from gh_formatter.cli import FileStatus, process_file
+    from gh-formatter.cli import FileStatus, process_file
 
     target = tmp_path / ".github" / "workflows"
     target.mkdir(parents=True)
@@ -337,7 +337,7 @@ def test_crlf_line_endings_preserved(tmp_path):
 
 
 def test_line_endings_lf_option_converts_crlf(tmp_path):
-    from gh_formatter.cli import FileStatus, process_file
+    from gh-formatter.cli import FileStatus, process_file
 
     target = tmp_path / ".github" / "workflows"
     target.mkdir(parents=True)

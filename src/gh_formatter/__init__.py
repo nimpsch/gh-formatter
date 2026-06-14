@@ -1,2 +1,2 @@
-# gh_formatter package
+# gh-formatter package
 __version__ = "0.1.0"
