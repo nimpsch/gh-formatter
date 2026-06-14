@@ -1,0 +1,400 @@
+"""Regression tests for bugs found during the refactoring."""
+
+import pytest
+
+from gh_formatter.config import Config
+from gh_formatter.context import Context
+from gh_formatter.engine import Engine
+
+
+@pytest.fixture
+def engine():
+    return Engine()
+
+
+def fmt(engine, yaml_text, path=".github/workflows/ci.yml", config=None):
+    context = Context(path, config or Config())
+    return engine.format_string(yaml_text, context), context
+
+
+def test_with_name_not_capitalized(engine):
+    """`name` inside `with:` is data (e.g. artifact names), not a display name."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-artifact
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "name: my-artifact" in formatted
+    assert "name: Upload" in formatted
+    assert "name: Ci" in formatted
+
+
+def test_list_keys_under_with_not_converted(engine):
+    """Filter list keys are only normalized inside the `on:` section."""
+    workflow = """name: ci
+on:
+  push:
+    branches: main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some/action@v1
+        with:
+          branches: main,dev
+"""
+    formatted, _ = fmt(engine, workflow)
+    # on.push.branches promoted to a list
+    assert "branches:\n    - main" in formatted or "- main" in formatted
+    # the step input stays a plain string
+    assert "branches: main,dev" in formatted
+
+
+def test_rename_collision_skipped_with_warning(engine):
+    """Colliding renames must not silently delete a sibling definition."""
+    action = """name: My Action
+inputs:
+  my-input:
+    description: first
+  my_input:
+    description: second
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo hi
+"""
+    formatted, context = fmt(
+        engine,
+        action,
+        path="action.yml",
+        config=Config({"input_casing": "dash-case"}),
+    )
+    assert "description: first" in formatted
+    assert "description: second" in formatted
+    assert any("my_input" in w for w in context.warnings)
+
+
+def test_reference_suffix_not_clobbered(engine):
+    """Renaming `my-input` must not rewrite part of `my-input-extra`."""
+    action = """name: My Action
+inputs:
+  my-input:
+    description: x
+  my-input-extra:
+    description: y
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "${{ inputs.my-input-extra }} ${{ inputs.my-input }}"
+"""
+    formatted, _ = fmt(
+        engine,
+        action,
+        path="action.yml",
+        config=Config({"input_casing": "snake_case"}),
+    )
+    assert "inputs.my_input_extra" in formatted
+    assert "inputs.my_input }}" in formatted
+    assert "my_input-extra" not in formatted
+
+
+def test_blank_lines_between_steps_and_jobs(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: one
+        run: echo 1
+      - name: two
+        run: echo 2
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo deploy
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "run: echo 1\n\n    - name: Two" in formatted
+    assert "run: echo 2\n\n  deploy:" in formatted
+
+
+def test_blank_lines_skip_literal_blocks(engine):
+    """Lines inside `run: |` that look like steps must not be split."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: gen
+        run: |
+          cat <<EOF
+          steps:
+          - fake: item
+          - other: item
+          EOF
+      - name: second
+        run: echo done
+"""
+    formatted, _ = fmt(engine, workflow)
+    # script content is untouched (no blank lines between the fake items)
+    assert "- fake: item\n        - other: item" in formatted
+    # but real steps are separated
+    assert "EOF\n\n    - name: Second" in formatted
+
+
+def test_blank_lines_can_be_disabled(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 1
+      - run: echo 2
+"""
+    formatted, _ = fmt(
+        engine,
+        workflow,
+        config=Config(
+            {
+                "blank_line_between_steps": False,
+                "blank_line_between_jobs": False,
+            }
+        ),
+    )
+    assert "\n\n" not in formatted
+
+
+def test_rules_can_be_disabled_by_id(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(
+        engine,
+        workflow,
+        config=Config({"rules": {"capitalize-names": False}}),
+    )
+    assert "name: ci" in formatted
+
+
+def test_literal_block_preserved_after_rename(engine):
+    """Reference rewriting must not change a literal block's scalar style."""
+    action = """name: My Action
+inputs:
+  myInput:
+    description: x
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        echo "${{ inputs.myInput }}"
+        echo "second line"
+"""
+    formatted, _ = fmt(engine, action, path="action.yml")
+    assert "run: |" in formatted
+    assert "inputs.my-input" in formatted
+
+
+def test_write_failure_reported_as_error(tmp_path):
+    """A file that cannot be written must be reported as an error."""
+    from gh_formatter.cli import FileStatus, process_file
+
+    target = tmp_path / ".github" / "workflows"
+    target.mkdir(parents=True)
+    workflow_file = target / "ci.yml"
+    workflow_file.write_text(
+        "jobs:\n  b:\n    runs-on: ubuntu-latest\non: push\nname: x\n",
+        encoding="utf-8",
+    )
+
+    result = process_file(
+        workflow_file, Engine(), Config(), check=True, show_diff=False
+    )
+    assert result.status is FileStatus.CHANGED
+    assert result.message == "Needs formatting"
+
+    unreadable = target / "missing.yml"
+    result = process_file(
+        unreadable, Engine(), Config(), check=False, show_diff=False
+    )
+    assert result.status is FileStatus.ERROR
+
+
+def test_jobs_prefix_references_updated_on_rename(engine):
+    """Reusable workflow outputs reference jobs.<id>; renames must follow."""
+    workflow = """name: template
+on:
+  workflow_call:
+    outputs:
+      passed:
+        value: ${{ jobs.run-tests.outputs.passed }}
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      passed: "1"
+    steps:
+      - run: echo ok
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "run_tests:" in formatted
+    assert "jobs.run_tests.outputs.passed" in formatted
+    assert "jobs.run-tests" not in formatted
+
+
+def test_uppercase_names_lowercased_by_default(engine):
+    """By default every input follows the configured casing."""
+    workflow = """name: template
+on:
+  workflow_call:
+    inputs:
+      SERVER_IMAGE:
+        type: string
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.SERVER_IMAGE }}"
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "server-image:" in formatted
+    assert "inputs.server-image" in formatted
+
+
+def test_uppercase_names_normalized_when_preserved(engine):
+    """With the flag on, uppercase names stay uppercase with underscores."""
+    workflow = """name: template
+on:
+  workflow_call:
+    inputs:
+      SERVER-IMAGE:
+        type: string
+      MM_ENV:
+        type: string
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.SERVER-IMAGE }} ${{ inputs.MM_ENV }}"
+"""
+    formatted, _ = fmt(
+        engine, workflow, config=Config({"preserve_uppercase_names": True})
+    )
+    # dash separator normalized to underscore, case kept
+    assert "SERVER_IMAGE:" in formatted
+    assert "inputs.SERVER_IMAGE" in formatted
+    # already-conforming name untouched
+    assert "MM_ENV:" in formatted
+
+
+def test_document_start_marker_preserved(engine):
+    workflow = """---
+name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert formatted.startswith("---\n")
+
+
+def test_crlf_line_endings_preserved(tmp_path):
+    from gh_formatter.cli import FileStatus, process_file
+
+    target = tmp_path / ".github" / "workflows"
+    target.mkdir(parents=True)
+    workflow_file = target / "ci.yml"
+    workflow_file.write_bytes(
+        b"jobs:\r\n  b:\r\n    runs-on: ubuntu-latest\r\non: push\r\nname: x\r\n"
+    )
+
+    result = process_file(
+        workflow_file, Engine(), Config(), check=False, show_diff=False
+    )
+    assert result.status is FileStatus.CHANGED
+    raw = workflow_file.read_bytes()
+    # A CRLF file must be written back with CRLF endings only
+    assert b"\r\n" in raw
+    assert b"\n" not in raw.replace(b"\r\n", b"")
+
+    # An LF file must stay LF even on Windows
+    lf_file = target / "lf.yml"
+    lf_file.write_bytes(
+        b"jobs:\n  b:\n    runs-on: ubuntu-latest\non: push\nname: x\n"
+    )
+    process_file(lf_file, Engine(), Config(), check=False, show_diff=False)
+    assert b"\r\n" not in lf_file.read_bytes()
+
+
+def test_line_endings_lf_option_converts_crlf(tmp_path):
+    from gh_formatter.cli import FileStatus, process_file
+
+    target = tmp_path / ".github" / "workflows"
+    target.mkdir(parents=True)
+    config = Config({"line_endings": "lf"})
+
+    crlf_file = target / "ci.yml"
+    crlf_file.write_bytes(
+        b"jobs:\r\n  b:\r\n    runs-on: ubuntu-latest\r\non: push\r\nname: x\r\n"
+    )
+    result = process_file(
+        crlf_file, Engine(), config, check=False, show_diff=False
+    )
+    assert result.status is FileStatus.CHANGED
+    assert b"\r\n" not in crlf_file.read_bytes()
+
+    # An already-formatted CRLF file still needs the newline conversion
+    crlf_file.write_bytes(crlf_file.read_bytes().replace(b"\n", b"\r\n"))
+    result = process_file(
+        crlf_file, Engine(), config, check=False, show_diff=False
+    )
+    assert result.status is FileStatus.CHANGED
+    assert b"\r\n" not in crlf_file.read_bytes()
+
+
+def test_workflow_call_secrets_reordered(engine):
+    workflow = """name: template
+on:
+  workflow_call:
+    secrets:
+      MM_LICENSE:
+        required: false
+        description: The license
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert formatted.index("description: The license") < formatted.index(
+        "required: false"
+    )
+
+
+def test_step_comments_stay_with_their_step(engine):
+    """The blank line goes above a step's comment, not between them."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 1
+      # explains the second step
+      - run: echo 2
+"""
+    formatted, _ = fmt(engine, workflow)
+    # ruamel keeps the comment at its original column; what matters is the
+    # blank line lands above the comment, not between comment and step.
+    assert (
+        "echo 1\n\n      # explains the second step\n    - run: echo 2"
+        in formatted
+    )

@@ -1,0 +1,8 @@
+- id: gh-formatter
+  name: GitHub Action & Workflow Formatter
+  description: Formats GitHub Workflows and Actions according to a custom stylesheet
+  entry: gh-formatter
+  language: python
+  types: [yaml]
+  files: (^.github/workflows/.*\.ya?ml|action\.ya?ml)$
+  minimum_pre_commit_version: "2.9.2"

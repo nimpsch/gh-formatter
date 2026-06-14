@@ -1,0 +1,14 @@
+name: Caller Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      deploy-env:
+        description: Environment
+        required: true
+        type: string
+jobs:
+  call_reusable_deploy:
+    uses: ./.github/workflows/reusable_workflow_example.yml
+    with:
+      target_env: ${{ github.event.inputs.deploy-env }}
+      dry_run: false

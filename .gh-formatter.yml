@@ -1,0 +1,174 @@
+# Comprehensive Configuration for gh_formatter
+# =============================================
+# This file controls all formatting options for GitHub Actions and Workflows.
+# All settings shown below are optional and use the defaults listed.
+
+# INDENTATION SETTINGS
+# ====================
+
+# Number of spaces to use for general indentation (default: 2)
+# Recommended values: 2 or 4
+indent: 2
+
+# Number of spaces to indent sequence (list) items (default: 2)
+# Controls indentation of list content inside a sequence
+sequence_indent: 2
+
+# Offset for the dash in sequence items (default: 0)
+# 0: dash starts at the indentation level
+# 2: dash is offset by 2 spaces
+# Example with sequence_offset: 0:
+#   - item1
+#   - item2
+# Example with sequence_offset: 2:
+#     - item1
+#     - item2
+sequence_offset: 0
+
+
+# NAMING CONVENTIONS
+# ==================
+
+# Casing convention for input names in actions and workflows
+# Options: "dash-case" or "snake_case"
+# Examples:
+#   dash-case:  my-input, debug-mode, run-tests
+#   snake_case: my_input, debug_mode, run_tests
+# Default: "dash-case"
+input_casing: "dash-case"
+
+# Casing convention for job names in workflows
+# Options: "snake_case" or "dash-case"
+# Examples:
+#   snake_case: build_job, run_tests, deploy_app
+#   dash-case:  build-job, run-tests, deploy-app
+# Default: "snake_case"
+job_casing: "snake_case"
+
+# How to treat env-var style names (SERVER_IMAGE, MM_ENV) when renaming
+# inputs and jobs:
+#   false (default): renamed to the configured casing like any other name
+#   true:            kept uppercase, separators normalized to underscores
+#                    (SERVER-IMAGE becomes SERVER_IMAGE)
+preserve_uppercase_names: false
+
+# Line endings for formatted files
+# Options: "preserve" (keep each file's existing endings) or "lf" (Unix)
+# Default: "preserve"
+line_endings: "preserve"
+
+
+# LIST FORMATTING STYLE
+# =====================
+
+# How to format trigger filter lists under `on:` (branches, tags, paths, ...)
+# Options: "flow" or "block"
+# flow:  [item1, item2, item3]
+# block: - item1
+#        - item2
+#        - item3
+# Default: "block"
+list_style: "block"
+
+# Which keys under `on:` are treated as filter lists. Single string values
+# are promoted to lists and the configured list_style is applied.
+# Default shown below.
+list_keys:
+  - branches
+  - branches-ignore
+  - tags
+  - tags-ignore
+  - paths
+  - paths-ignore
+  - types
+  - workflows
+
+
+# BLANK LINES
+# ===========
+
+# Insert a blank line between consecutive steps (default: true)
+blank_line_between_steps: true
+
+# Insert a blank line between job definitions (default: true)
+blank_line_between_jobs: true
+
+
+# RULE TOGGLES
+# ============
+
+# Disable individual rules or post-processors by id.
+# Run `gh-formatter --list-rules` to see all available ids.
+# All rules are enabled by default.
+rules: {}
+# Example:
+# rules:
+#   capitalize-names: false
+#   blank-lines: false
+
+
+# KEY ORDERING
+# ============
+
+# Order of keys for GitHub Actions workflow files (.github/workflows/*.yml)
+# Keys not listed here will be placed at the end in alphabetical order
+# Default order shown below (recommended for readability)
+key_order_workflow:
+  - name
+  - run-name
+  - on
+  - concurrency
+  - permissions
+  - env
+  - defaults
+  - jobs
+
+# Order of keys for GitHub Actions definition files (action.yml / action.yaml)
+# Keys not listed here will be placed at the end in alphabetical order
+# Default order shown below (recommended for readability)
+key_order_action:
+  - name
+  - description
+  - author
+  - inputs
+  - outputs
+  - runs
+  - branding
+
+# Order of keys inside each job definition
+# Default order shown below
+key_order_job:
+  - name
+  - if
+  - needs
+  - runs-on
+  - uses
+  - with
+  - secrets
+  - permissions
+  - environment
+  - concurrency
+  - strategy
+  - container
+  - services
+  - outputs
+  - env
+  - defaults
+  - timeout-minutes
+  - continue-on-error
+  - steps
+
+# Order of keys inside each step
+# Default order shown below
+key_order_step:
+  - name
+  - id
+  - uses
+  - run
+  - with
+  - env
+  - timeout-minutes
+  - continue-on-error
+  - if
+  - shell
+  - working-directory

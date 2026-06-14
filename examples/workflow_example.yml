@@ -1,0 +1,27 @@
+# Example Workflow
+name: CI Workflow
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      debug-mode:
+        description: Enable debug logs
+        required: false
+        default: "false"
+jobs:
+  build_job:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Build
+      run: |
+        echo "Building..."
+        echo "Done."
+  test_job:
+    needs: build_job
+    runs-on: ubuntu-latest
+    steps:
+    - name: Run Test
+      run: npm test
