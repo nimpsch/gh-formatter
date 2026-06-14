@@ -47,9 +47,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nimpsch/gh_formatter"
-Issues = "https://github.com/nimpsch/gh_formatter/issues"
-Changelog = "https://github.com/nimpsch/gh_formatter/releases"
+Homepage = "https://github.com/nimpsch/gh-formatter"
+Issues = "https://github.com/nimpsch/gh-formatter/issues"
+Changelog = "https://github.com/nimpsch/gh-formatter/releases"
 
 [project.scripts]
 gh-formatter = "gh_formatter.cli:main"
