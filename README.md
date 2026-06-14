@@ -146,6 +146,10 @@ line_endings: preserve
 # or "preserve". Plain unquoted values are never force-quoted.
 quote_style: double
 
+# Let a yamllint config drive indentation (see "Using with yamllint").
+# false (default), true (auto-discover .yamllint*), or an explicit path.
+defer_to_yamllint: false
+
 # Trigger filter lists under `on:` (branches, tags, paths, ...)
 list_style: block    # "block" (- a) or "flow" ([a, b])
 list_keys:           # which keys under `on:` are treated as filter lists
@@ -225,6 +229,64 @@ To opt out of input renaming entirely:
 rules:
   input-naming: false
 ```
+
+## Using with yamllint
+
+gh-formatter is a *formatter* (it rewrites files); [yamllint](https://yamllint.readthedocs.io)
+is a *linter* (it reports style problems). They complement each other, but
+yamllint's defaults flag a few things gh-formatter intentionally produces, so
+out of the box the two would fight. This repo ships a [`.yamllint.yml`](.yamllint.yml)
+that resolves the conflicts — drop the same file into your project and both
+tools agree.
+
+What the bundled config changes and why:
+
+| yamllint rule | Setting | Reason |
+|---------------|---------|--------|
+| `line-length` | `disable` | gh-formatter never wraps `run:` scripts or `${{ }}` expressions, so a width cap would flag its output. |
+| `document-start` | `disable` | gh-formatter preserves an existing `---` but never inserts one. |
+| `truthy` | `check-keys: false` | The Actions `on:` key is read as a YAML 1.1 boolean; this stops it being flagged while still checking values. |
+| `indentation` | `indent-sequences: consistent` | Matches gh-formatter's indented sequences while tolerating hand-written files that keep dashes flush. |
+
+Run order matters: lint **after** formatting so yamllint sees the final
+output.
+
+```bash
+gh-formatter .          # format first
+yamllint --strict .     # then lint
+```
+
+The same ordering is wired into [CI](.github/workflows/build_and_test.yml) and
+the [pre-commit hooks](.pre-commit-config.yaml).
+
+> Tip: in your own config files (like `.gh-formatter.yml`) quote a literal
+> `"on"` in a list so YAML 1.1 linters don't read it as `true`.
+
+### Keeping the two configs in sync
+
+The bundled `.yamllint.yml` is deliberately lenient about indentation
+(`indent-sequences: consistent`), so it accepts gh-formatter's output whatever
+the indent width. But if you tighten yamllint to a *specific* width — say
+`indentation: {spaces: 4, indent-sequences: true}` — while gh-formatter is
+still on its 2-space default, the two diverge: gh-formatter reindents to 2,
+yamllint demands 4, and the project never goes green.
+
+To make that impossible, point gh-formatter at the yamllint config and let
+**yamllint win**:
+
+```yaml
+# .gh-formatter.yml
+defer_to_yamllint: true          # discover .yamllint(.yml/.yaml) in the cwd
+# defer_to_yamllint: path/to/.yamllint.yml   # or an explicit path
+```
+
+When enabled, gh-formatter reads the yamllint `indentation` rule and derives
+its own `indent` / `sequence_indent` / `sequence_offset` from it (mapping the
+`spaces` width and `indent-sequences` flag, always leaving exactly one space
+after a `-` so the `hyphens` rule is happy too). yamllint becomes the single
+source of truth, so the formatter can't produce output its own linter rejects.
+If yamllint leaves the width as `consistent`, there is nothing concrete to
+copy and gh-formatter keeps its configured indentation.
 
 ## Examples
 

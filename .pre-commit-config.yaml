@@ -17,10 +17,28 @@ repos:
     rev: v0.2.2
     hooks:
       - id: ruff
-        args: [ --fix ]
+        args: [--fix]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
       - id: mypy
+        files: ^src/
         additional_dependencies: [ruamel.yaml]
+
+  # gh-formatter self-check (whole repo, so cross-file renames are seen).
+  # Runs before yamllint so the linter sees the formatted output.
+  - repo: local
+    hooks:
+      - id: gh-formatter
+        name: gh-formatter (self-check)
+        entry: gh-formatter --check .
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]

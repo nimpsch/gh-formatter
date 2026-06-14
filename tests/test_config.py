@@ -44,11 +44,73 @@ def test_rule_toggles():
         {"blank_line_between_steps": "yes"},
         {"sequence_offset": 4, "sequence_indent": 4},
         {"quote_style": "backtick"},
+        {"defer_to_yamllint": 123},
     ],
 )
 def test_invalid_values_rejected(bad):
     with pytest.raises(ConfigError):
         Config(bad)
+
+
+def _write_yamllint(path, *, spaces, indent_sequences):
+    path.write_text(
+        "extends: default\n"
+        "rules:\n"
+        "  indentation:\n"
+        f"    spaces: {spaces}\n"
+        f"    indent-sequences: {indent_sequences}\n",
+        encoding="utf-8",
+    )
+
+
+def test_defer_to_yamllint_overrides_indentation(tmp_path):
+    yl = tmp_path / ".yamllint.yml"
+    _write_yamllint(yl, spaces=4, indent_sequences="true")
+    config = Config({"defer_to_yamllint": str(yl)})
+    # yamllint wins: 4-space mapping, dash indented 4, one space after dash.
+    assert config.indent == 4
+    assert config.sequence_offset == 4
+    assert config.sequence_indent == 6
+
+
+def test_defer_to_yamllint_flush_sequences(tmp_path):
+    yl = tmp_path / ".yamllint.yml"
+    _write_yamllint(yl, spaces=2, indent_sequences="false")
+    config = Config({"defer_to_yamllint": str(yl)})
+    assert config.indent == 2
+    assert config.sequence_offset == 0
+    assert config.sequence_indent == 2
+
+
+def test_defer_to_yamllint_consistent_keeps_gh_defaults(tmp_path):
+    yl = tmp_path / ".yamllint.yml"
+    yl.write_text("extends: default\n", encoding="utf-8")  # spaces: consistent
+    config = Config({"defer_to_yamllint": str(yl)})
+    assert (config.indent, config.sequence_offset, config.sequence_indent) == (
+        2,
+        2,
+        4,
+    )
+
+
+def test_defer_to_yamllint_auto_discovers_in_cwd(tmp_path, monkeypatch):
+    _write_yamllint(
+        tmp_path / ".yamllint.yml", spaces=4, indent_sequences="true"
+    )
+    monkeypatch.chdir(tmp_path)
+    config = Config({"defer_to_yamllint": True})
+    assert config.indent == 4
+
+
+def test_defer_to_yamllint_missing_config_errors(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no yamllint config here
+    with pytest.raises(ConfigError):
+        Config({"defer_to_yamllint": True})
+
+
+def test_defer_to_yamllint_explicit_missing_path_errors():
+    with pytest.raises(ConfigError):
+        Config({"defer_to_yamllint": "/nope/.yamllint.yml"})
 
 
 def test_non_mapping_rejected():

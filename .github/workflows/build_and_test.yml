@@ -51,22 +51,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install package with dev dependencies
+      # gh-formatter must be importable for its (system) pre-commit hook;
+      # pre-commit manages the envs for black, ruff, mypy, and yamllint.
+      - name: Install package and pre-commit
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" pre-commit
 
-      - name: Check code formatting (black)
-        run: black --check src/ tests/
-
-      - name: Lint (ruff)
-        run: ruff check src/ tests/
-
-      - name: Type-check (mypy)
-        run: mypy src/
-
-      - name: Check workflow formatting (self-check)
-        run: gh-formatter --check .
+      # Single entry point: black, ruff, mypy, the gh-formatter self-check,
+      # and yamllint all run through pre-commit (see .pre-commit-config.yaml).
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
 
   build:
     name: Verify package builds
