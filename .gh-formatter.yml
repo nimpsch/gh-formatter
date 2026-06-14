@@ -72,6 +72,19 @@ line_endings: "preserve"
 quote_style: "double"
 
 
+# YAMLLINT INTEROP
+# ================
+
+# Make a yamllint config the source of truth for indentation so a format
+# never produces output yamllint would reject. Requires yamllint installed.
+# Options:
+#   false (default): ignore yamllint, use the indentation settings above
+#   true:            discover .yamllint(.yml/.yaml) in the working directory
+#   <path>:          read indentation from that explicit yamllint config
+# When enabled, the derived indent/sequence settings override the ones above.
+defer_to_yamllint: false
+
+
 # LIST FORMATTING STYLE
 # =====================
 
@@ -130,7 +143,7 @@ rules: {}
 key_order_workflow:
   - name
   - run-name
-  - on
+  - "on"  # quoted so YAML 1.1 linters don't read it as the boolean true
   - concurrency
   - permissions
   - env

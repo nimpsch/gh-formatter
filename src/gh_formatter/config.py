@@ -29,6 +29,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # "preserve" keeps each file's existing line endings; "lf" rewrites
     # every formatted file with Unix line endings.
     "line_endings": "preserve",
+    # Make a yamllint config the source of truth for the settings the two
+    # tools share (currently indentation), so a format never produces output
+    # the linter rejects. false (default) ignores yamllint; true discovers
+    # a .yamllint(.yml/.yaml) in the working directory; a string uses that
+    # explicit yamllint config path.
+    "defer_to_yamllint": False,
     # Quote style for already-quoted scalars: "double" (default) and
     # "single" normalize every quoted scalar to that character; "preserve"
     # leaves each scalar's existing quoting untouched. Plain (unquoted)
@@ -178,12 +184,36 @@ class Config:
         self.key_order_step = _require_str_list(merged, "key_order_step")
         self.rules = _require_rule_toggles(merged, "rules")
 
+        # yamllint, when deferred to, wins over the indentation set above.
+        self.defer_to_yamllint, self._yamllint_config = _require_yamllint_ref(
+            merged, "defer_to_yamllint"
+        )
+        if self.defer_to_yamllint:
+            self._apply_yamllint_overrides()
+
         if self.sequence_offset >= self.sequence_indent:
             raise ConfigError(
                 "'sequence_offset' must be smaller than 'sequence_indent' "
                 f"(got offset={self.sequence_offset}, "
                 f"indent={self.sequence_indent})."
             )
+
+    def _apply_yamllint_overrides(self) -> None:
+        """Overrides indentation with values derived from a yamllint config."""
+        from gh_formatter.yamllint_sync import (
+            find_yamllint_config,
+            indentation_overrides,
+        )
+
+        path = self._yamllint_config or find_yamllint_config()
+        if path is None:
+            raise ConfigError(
+                "defer_to_yamllint is enabled but no yamllint config "
+                "(.yamllint, .yamllint.yaml, or .yamllint.yml) was found. "
+                "Set defer_to_yamllint to an explicit path instead."
+            )
+        for key, value in indentation_overrides(path).items():
+            setattr(self, key, value)
 
     def rule_enabled(self, rule_id: str) -> bool:
         """Returns whether the rule/post-processor with this id is enabled."""
@@ -239,7 +269,7 @@ def _require_int(data: dict[str, Any], key: str, minimum: int) -> int:
         raise ConfigError(f"'{key}' must be an integer, got {value!r}.")
     if value < minimum:
         raise ConfigError(f"'{key}' must be >= {minimum}, got {value}.")
-    return value
+    return int(value)
 
 
 def _require_bool(data: dict[str, Any], key: str) -> bool:
@@ -247,6 +277,24 @@ def _require_bool(data: dict[str, Any], key: str) -> bool:
     if not isinstance(value, bool):
         raise ConfigError(f"'{key}' must be a boolean, got {value!r}.")
     return value
+
+
+def _require_yamllint_ref(
+    data: dict[str, Any], key: str
+) -> tuple[bool, str | None]:
+    """Parses defer_to_yamllint: bool (auto-discover) or path string.
+
+    Returns (enabled, explicit_path_or_None).
+    """
+    value = data[key]
+    if isinstance(value, bool):
+        return value, None
+    if isinstance(value, str) and value:
+        return True, value
+    raise ConfigError(
+        f"'{key}' must be a boolean or a path to a yamllint config, "
+        f"got {value!r}."
+    )
 
 
 def _require_choice(

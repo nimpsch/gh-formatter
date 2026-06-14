@@ -1,0 +1,34 @@
+# yamllint configuration tuned to accept gh-formatter's output.
+#
+# gh-formatter (a formatter) and yamllint (a linter) can run side by side in
+# the same project. Left on its defaults, yamllint flags a handful of things
+# that gh-formatter deliberately produces -- they would fight forever. This
+# config turns off only those rules so `gh-formatter` output passes
+# `yamllint` cleanly, while every other check stays active.
+extends: default
+
+# Skip virtualenvs, build artefacts, etc.
+ignore-from-file: .gitignore
+
+rules:
+  # gh-formatter never wraps lines: `run:` scripts and ${{ }} expressions
+  # must stay intact, so it sets an effectively unlimited width. A
+  # line-length cap would flag that output on every long step.
+  line-length: disable
+
+  # gh-formatter preserves an existing `---` document marker but never
+  # inserts one, so don't require it.
+  document-start: disable
+
+  # In YAML 1.1 the GitHub Actions `on:` key is read as the boolean `true`;
+  # checking keys would flag every workflow. Values are still validated.
+  truthy:
+    check-keys: false
+
+  # gh-formatter indents sequence items one level under their key with a
+  # 2-space mapping indent. `consistent` accepts that while tolerating
+  # hand-written files (e.g. .github/dependabot.yml) that keep dashes flush,
+  # as long as each file is internally consistent.
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
