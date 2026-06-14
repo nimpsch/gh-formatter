@@ -35,7 +35,7 @@ class JobNamingRule(BaseRule):
 
     def apply(self, data: CommentedMap, context: Context) -> None:
         jobs_map = get_map(data, "jobs")
-        if jobs_map is None:
+        if jobs_map is None or context.is_ignored(jobs_map):
             return
 
         renames = compute_safe_renames(
@@ -45,6 +45,11 @@ class JobNamingRule(BaseRule):
             "job",
             preserve_uppercase=context.config.preserve_uppercase_names,
         )
+        renames = {
+            old: new
+            for old, new in renames.items()
+            if not context.is_frozen(jobs_map, old)
+        }
         if not renames:
             return
 

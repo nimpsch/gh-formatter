@@ -16,6 +16,7 @@ from ruamel.yaml.comments import CommentedMap
 
 from gh_formatter.config import Config
 from gh_formatter.context import Context
+from gh_formatter.directives import mark_disabled_nodes, scan_disabled
 from gh_formatter.rules.inputs import plan_input_renames
 from gh_formatter.utils import load_yaml
 
@@ -46,6 +47,9 @@ def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:
     for file_path in files:
         try:
             content = file_path.read_text(encoding="utf-8")
+            disable_file, disabled_lines = scan_disabled(content)
+            if disable_file:
+                continue  # a disabled file never renames or propagates
             data = load_yaml(content)
         except Exception:
             continue  # unreadable/unparsable files are reported later
@@ -53,8 +57,10 @@ def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:
             continue
 
         # Throwaway context: warnings are emitted again (and surfaced)
-        # when the file itself is formatted.
+        # when the file itself is formatted. Directive-frozen inputs must be
+        # excluded here too so callers are not rewritten out of sync.
         context = Context(str(file_path), config)
+        mark_disabled_nodes(data, disabled_lines, context)
         renames = plan_input_renames(data, context)
         if renames:
             plan.input_renames[file_path.resolve()] = renames

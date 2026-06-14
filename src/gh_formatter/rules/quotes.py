@@ -45,22 +45,26 @@ class QuoteStyleRule(BaseRule):
 
     def apply(self, data: CommentedMap, context: Context) -> None:
         target = _TARGET_CLASS[context.config.quote_style]
-        _normalize(data, target)
+        _normalize(data, target, context)
 
 
-def _normalize(data: Any, target: type) -> None:
+def _normalize(data: Any, target: type, context: Context) -> None:
     """Rewraps quoted scalar values/items in `target`, recursing into both."""
     if isinstance(data, dict):
         for key, value in list(data.items()):
+            if context.is_frozen(data, key) or context.is_ignored(value):
+                continue
             if isinstance(value, _QUOTED_TYPES):
                 if not isinstance(value, target):
                     data[key] = target(str(value))
             else:
-                _normalize(value, target)
+                _normalize(value, target, context)
     elif isinstance(data, list):
         for index, item in enumerate(data):
+            if context.is_ignored(item):
+                continue
             if isinstance(item, _QUOTED_TYPES):
                 if not isinstance(item, target):
                     data[index] = target(str(item))
             else:
-                _normalize(item, target)
+                _normalize(item, target, context)
