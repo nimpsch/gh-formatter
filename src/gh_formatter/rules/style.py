@@ -32,12 +32,14 @@ class StyleRule(BaseRule):
         return True
 
     def apply(self, data: CommentedMap, context: Context) -> None:
-        _clean_recursively(data)
+        _clean_recursively(data, context)
 
 
-def _clean_recursively(data: Any) -> None:
+def _clean_recursively(data: Any, context: Context) -> None:
     if isinstance(data, dict):
         for key, value in list(data.items()):
+            if context.is_frozen(data, key) or context.is_ignored(value):
+                continue
             if key in _BOOLEAN_KEYS and isinstance(value, str):
                 normalized = _normalize_boolean(value)
                 if normalized is not None:
@@ -45,13 +47,15 @@ def _clean_recursively(data: Any) -> None:
             elif isinstance(value, _BLOCK_SCALAR_TYPES):
                 data[key] = _trim_trailing_whitespace(value)
             else:
-                _clean_recursively(value)
+                _clean_recursively(value, context)
     elif isinstance(data, list):
         for index, item in enumerate(data):
+            if context.is_ignored(item):
+                continue
             if isinstance(item, _BLOCK_SCALAR_TYPES):
                 data[index] = _trim_trailing_whitespace(item)
             else:
-                _clean_recursively(item)
+                _clean_recursively(item, context)
 
 
 def _normalize_boolean(value: str) -> bool | None:

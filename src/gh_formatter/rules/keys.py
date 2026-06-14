@@ -63,7 +63,7 @@ class KeyOrderingRule(BaseRule):
 
     def _format_workflow(self, data: CommentedMap, context: Context) -> None:
         config = context.config
-        reorder_commented_map(data, config.key_order_workflow)
+        _reorder(data, config.key_order_workflow, context)
 
         on_map = get_map(data, "on")
         if on_map is not None:
@@ -72,54 +72,67 @@ class KeyOrderingRule(BaseRule):
                 if trigger_map is None:
                     continue
                 _reorder_definitions(
-                    get_map(trigger_map, "inputs"), INPUT_KEY_ORDER
+                    get_map(trigger_map, "inputs"), INPUT_KEY_ORDER, context
                 )
                 _reorder_definitions(
-                    get_map(trigger_map, "outputs"), OUTPUT_KEY_ORDER
+                    get_map(trigger_map, "outputs"), OUTPUT_KEY_ORDER, context
                 )
                 # workflow_call secrets share the input definition shape
                 _reorder_definitions(
-                    get_map(trigger_map, "secrets"), INPUT_KEY_ORDER
+                    get_map(trigger_map, "secrets"), INPUT_KEY_ORDER, context
                 )
 
         jobs_map = get_map(data, "jobs")
         if jobs_map is not None:
             for job_def in jobs_map.values():
-                if isinstance(job_def, CommentedMap):
-                    reorder_commented_map(job_def, config.key_order_job)
-                    _reorder_steps(job_def, config.key_order_step)
+                if isinstance(job_def, CommentedMap) and not context.is_ignored(
+                    job_def
+                ):
+                    _reorder(job_def, config.key_order_job, context)
+                    _reorder_steps(job_def, config.key_order_step, context)
 
     def _format_action(self, data: CommentedMap, context: Context) -> None:
         config = context.config
-        reorder_commented_map(data, config.key_order_action)
+        _reorder(data, config.key_order_action, context)
 
-        _reorder_definitions(get_map(data, "inputs"), INPUT_KEY_ORDER)
-        _reorder_definitions(get_map(data, "outputs"), OUTPUT_KEY_ORDER)
+        _reorder_definitions(get_map(data, "inputs"), INPUT_KEY_ORDER, context)
+        _reorder_definitions(
+            get_map(data, "outputs"), OUTPUT_KEY_ORDER, context
+        )
 
         runs_map = get_map(data, "runs")
-        if runs_map is not None:
-            reorder_commented_map(runs_map, RUNS_KEY_ORDER)
+        if runs_map is not None and not context.is_ignored(runs_map):
+            _reorder(runs_map, RUNS_KEY_ORDER, context)
             # Composite actions carry their steps under runs
-            _reorder_steps(runs_map, config.key_order_step)
+            _reorder_steps(runs_map, config.key_order_step, context)
+
+
+def _reorder(mapping: CommentedMap, order: list[str], context: Context) -> None:
+    """Reorders a mapping unless a directive froze any of its keys."""
+    if context.is_ignored(mapping) or context.has_frozen_keys(mapping):
+        return
+    reorder_commented_map(mapping, order)
 
 
 def _reorder_definitions(
-    definitions: CommentedMap | None, order: list[str]
+    definitions: CommentedMap | None, order: list[str], context: Context
 ) -> None:
     """Reorders the keys of each definition in an inputs/outputs map."""
-    if definitions is None:
+    if definitions is None or context.is_ignored(definitions):
         return
     for definition in definitions.values():
         if isinstance(definition, CommentedMap):
-            reorder_commented_map(definition, order)
+            _reorder(definition, order, context)
 
 
-def _reorder_steps(container: CommentedMap, order: list[str]) -> None:
+def _reorder_steps(
+    container: CommentedMap, order: list[str], context: Context
+) -> None:
     """Reorders the keys of each step in the container's steps sequence."""
     steps = get_seq(container, "steps")
     if steps is None:
         return
     for step in steps:
         if isinstance(step, CommentedMap):
-            reorder_commented_map(step, order)
+            _reorder(step, order, context)
     promote_step_lead_comments(container)
