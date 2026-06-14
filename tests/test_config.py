@@ -6,9 +6,12 @@ from gh_formatter.config import Config, ConfigError
 def test_defaults():
     config = Config()
     assert config.indent == 2
+    assert config.sequence_indent == 4
+    assert config.sequence_offset == 2
     assert config.input_casing == "dash-case"
     assert config.job_casing == "snake_case"
     assert config.list_style == "block"
+    assert config.quote_style == "double"
     assert config.blank_line_between_steps is True
     assert config.blank_line_between_jobs is True
     assert "branches" in config.list_keys
@@ -39,7 +42,8 @@ def test_rule_toggles():
         {"rules": {"x": "yes"}},
         {"key_order_workflow": "name"},
         {"blank_line_between_steps": "yes"},
-        {"sequence_offset": 2, "sequence_indent": 2},
+        {"sequence_offset": 4, "sequence_indent": 4},
+        {"quote_style": "backtick"},
     ],
 )
 def test_invalid_values_rejected(bad):

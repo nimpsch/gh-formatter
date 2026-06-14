@@ -1,14 +1,56 @@
-name: Caller Workflow
+# Caller workflow showing how to invoke a reusable workflow with inputs and
+# secrets, run it across a matrix of environments, and gate it behind a
+# manual approval input.
+name: Caller
+
 on:
   workflow_dispatch:
     inputs:
       deploy-env:
-        description: Environment
+        description: "Environment to deploy to"
         required: true
-        type: string
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      dry-run:
+        description: "Perform a dry run only"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
 jobs:
-  call_reusable_deploy:
+  # Fan out the reusable deploy across every region.
+  call_deploy:
+    name: Call reusable deploy
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/reusable_workflow_example.yml
     with:
-      target_env: ${{ github.event.inputs.deploy-env }}
-      dry_run: false
+      target-env: "${{ github.event.inputs.deploy-env }}-${{ matrix.region }}"
+      image-tag: "${{ github.sha }}"  # deploy exactly this commit
+      dry-run: "${{ github.event.inputs.dry-run }}"
+    secrets:
+      # Forward the org secret to the reusable workflow.
+      deploy-token: "${{ secrets.DEPLOY_TOKEN }}"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        region:
+          - eu
+          - us
+
+  # Always report, even if a region's deploy failed.
+  notify:
+    name: Notify
+    if: ${{ always() }}
+    needs: call_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report status
+        run: echo "Deploy finished with status ${{ needs.call_deploy.result }}"
+        shell: bash

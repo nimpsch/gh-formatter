@@ -1,0 +1,61 @@
+# Example composite action demonstrating inputs with defaults, outputs wired
+# from step outputs, conditional steps, and mixing `run` steps with `uses`
+# steps. Reference it with `uses: ./examples/composite_action`.
+name: Setup Project
+
+description: "Check out, install a toolchain, and cache dependencies"
+
+author: "Sebastian Nimpsch"
+inputs:
+  node-version:
+    description: "Node.js version to install"
+    required: false
+    default: "20"  # current LTS
+  install-dependencies:
+    description: "Whether to run the dependency install step"
+    required: false
+    default: true
+  working-directory:
+    description: "Directory to run install commands in"
+    required: false
+    default: "."
+
+# Outputs are wired from step ids below so callers can react to them.
+outputs:
+  cache-hit:
+    description: "Whether the dependency cache was restored"
+    value: "${{ steps.cache.outputs.cache-hit }}"
+  node-version:
+    description: "The resolved Node.js version"
+    value: "${{ steps.setup-node.outputs.node-version }}"
+
+runs:
+  using: composite  # composite actions run a list of steps, like a job
+  steps:
+    - name: Set up Node.js
+      id: setup-node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "${{ inputs.node-version }}"
+
+    - name: Restore dependency cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: "${{ inputs.working-directory }}/node_modules"
+        # Cache key changes whenever the lockfile or Node version changes.
+        key: "node-${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json') }}"
+
+    # Skip the install entirely on a cache hit (or when disabled).
+    - name: Install dependencies
+      if: ${{ inputs.install-dependencies == 'true' && steps.cache.outputs.cache-hit != 'true' }}
+      run: |
+        echo "Installing dependencies with Node ${{ inputs.node-version }}"
+        npm ci
+      shell: bash
+      working-directory: "${{ inputs.working-directory }}"
+
+branding:
+  icon: package
+  color: blue
+

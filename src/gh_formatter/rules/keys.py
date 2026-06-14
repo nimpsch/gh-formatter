@@ -4,7 +4,12 @@ from ruamel.yaml.comments import CommentedMap
 
 from gh_formatter.context import Context
 from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import get_map, get_seq, reorder_commented_map
+from gh_formatter.utils import (
+    get_map,
+    get_seq,
+    promote_step_lead_comments,
+    reorder_commented_map,
+)
 
 INPUT_KEY_ORDER = [
     "description",
@@ -117,3 +122,4 @@ def _reorder_steps(container: CommentedMap, order: list[str]) -> None:
     for step in steps:
         if isinstance(step, CommentedMap):
             reorder_commented_map(step, order)
+    promote_step_lead_comments(container)

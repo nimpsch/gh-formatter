@@ -1,27 +1,160 @@
-# Example Workflow
-name: CI Workflow
+# Example CI workflow exercising a broad range of GitHub Actions features:
+# multiple triggers, concurrency, permissions, a build matrix, conditional
+# steps, shells, services, and environment variables.
+name: CI
+
+run-name: "CI for ${{ github.ref_name }} by @${{ github.actor }}"
+
+# Run on pushes to long-lived branches, PRs, a weekly schedule, and on demand.
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "release/**"  # maintenance branches
+    tags:
+      - "v*"
+    paths-ignore:
+      # Docs-only changes don't need the full pipeline.
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+  schedule:
+    # Monday 06:00 UTC nightly-style run to catch dependency drift.
+    - cron: "0 6 * * 1"
   workflow_dispatch:
     inputs:
-      debug-mode:
-        description: Enable debug logs
+      debug-enabled:
+        description: "Run the build with verbose logging"
         required: false
-        default: "false"
+        default: false
+        type: boolean
+      log-level:
+        description: "Logging verbosity"
+        required: false
+        default: "info"
+        type: choice
+        options:
+          - info
+          - debug
+          - warn
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true
+
+# Least-privilege token: read code, write PR comments only.
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  PYTHON_DEFAULT: "3.12"  # keep in sync with the lint job
+  FORCE_COLOR: "1"
+
 jobs:
-  build_job:
+  # Fast feedback: lint before spending time on the test matrix.
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Build
-      run: |
-        echo "Building..."
-        echo "Done."
-  test_job:
-    needs: build_job
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_DEFAULT }}"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run linters
+        run: |
+          ruff check src/ tests/
+          black --check src/ tests/
+
+  # Full test matrix across OSes and supported Python versions.
+  test:
+    name: Test
+    needs: lint
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      fail-fast: false  # surface every failing combination, not just the first
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"  # TODO: add 3.14 once it ships
+    services:
+      postgres:
+        image: "postgres:16"
+        env:
+          POSTGRES_PASSWORD: "postgres"
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      COVERAGE_FILE: ".coverage.${{ matrix.os }}.${{ matrix.python-version }}"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ matrix.python-version }}"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        id: pytest
+        run: pytest -v
+        env:
+          # Points at the postgres service defined above.
+          DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test"
+        shell: bash
+        working-directory: .
+
+      # Only one OS needs to publish coverage; failures here shouldn't fail CI.
+      - name: Upload coverage
+        if: ${{ always() && matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: "coverage-${{ matrix.python-version }}"
+          path: .coverage*
+        continue-on-error: true
+
+  # Deploy only for tag pushes (v*), and only after tests pass.
+  deploy:
+    name: Deploy
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC token for keyless auth to the cloud provider
+    environment: production
     steps:
-    - name: Run Test
-      run: npm test
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: ./scripts/deploy.sh
+        env:
+          DEPLOY_TOKEN: "${{ secrets.DEPLOY_TOKEN }}"

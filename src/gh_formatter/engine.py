@@ -11,6 +11,7 @@ from gh_formatter.rules.jobs import JobNamingRule
 from gh_formatter.rules.keys import KeyOrderingRule
 from gh_formatter.rules.lists import ListStyleRule
 from gh_formatter.rules.names import CapitalizeNamesRule
+from gh_formatter.rules.quotes import QuoteStyleRule
 from gh_formatter.rules.style import StyleRule
 from gh_formatter.utils import dump_yaml, load_yaml
 
@@ -25,6 +26,7 @@ def default_rules() -> list[BaseRule]:
         CapitalizeNamesRule(),
         ListStyleRule(),
         StyleRule(),
+        QuoteStyleRule(),
     ]
 
 
