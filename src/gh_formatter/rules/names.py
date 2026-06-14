@@ -27,22 +27,26 @@ class CapitalizeNamesRule(BaseRule):
         return True
 
     def apply(self, data: CommentedMap, context: Context) -> None:
-        _capitalize_name(data)
+        _capitalize_name(data, context)
 
         if context.file_type == "workflow":
             jobs_map = get_map(data, "jobs")
             if jobs_map is not None:
                 for job_def in jobs_map.values():
-                    if isinstance(job_def, CommentedMap):
-                        _capitalize_name(job_def)
-                        _capitalize_step_names(job_def)
+                    if isinstance(job_def, CommentedMap) and not (
+                        context.is_ignored(job_def)
+                    ):
+                        _capitalize_name(job_def, context)
+                        _capitalize_step_names(job_def, context)
         else:
             runs_map = get_map(data, "runs")
-            if runs_map is not None:
-                _capitalize_step_names(runs_map)
+            if runs_map is not None and not context.is_ignored(runs_map):
+                _capitalize_step_names(runs_map, context)
 
 
-def _capitalize_name(mapping: CommentedMap) -> None:
+def _capitalize_name(mapping: CommentedMap, context: Context) -> None:
+    if context.is_ignored(mapping) or context.is_frozen(mapping, "name"):
+        return
     value = mapping.get("name")
     if isinstance(value, str) and value:
         capitalized = value[0].upper() + value[1:]
@@ -50,10 +54,10 @@ def _capitalize_name(mapping: CommentedMap) -> None:
             mapping["name"] = restyle_scalar(value, capitalized)
 
 
-def _capitalize_step_names(container: CommentedMap) -> None:
+def _capitalize_step_names(container: CommentedMap, context: Context) -> None:
     steps = get_seq(container, "steps")
     if steps is None:
         return
     for step in steps:
-        if isinstance(step, CommentedMap):
-            _capitalize_name(step)
+        if isinstance(step, CommentedMap) and not context.is_ignored(step):
+            _capitalize_name(step, context)

@@ -31,17 +31,24 @@ class ListStyleRule(BaseRule):
 
     def apply(self, data: CommentedMap, context: Context) -> None:
         on_map = get_map(data, "on")
-        if on_map is None:
+        if on_map is None or context.is_ignored(on_map):
             return
         _apply_list_style(
-            on_map, context.config.list_style, set(context.config.list_keys)
+            on_map,
+            context.config.list_style,
+            set(context.config.list_keys),
+            context,
         )
 
 
-def _apply_list_style(data: Any, style: str, list_keys: set[str]) -> None:
+def _apply_list_style(
+    data: Any, style: str, list_keys: set[str], context: Context
+) -> None:
     """Recursively finds list keys and applies the configured style."""
     if isinstance(data, dict):
         for key, value in list(data.items()):
+            if context.is_frozen(data, key) or context.is_ignored(value):
+                continue
             if key in list_keys:
                 # Promote single string to list
                 if isinstance(value, str):
@@ -54,7 +61,8 @@ def _apply_list_style(data: Any, style: str, list_keys: set[str]) -> None:
                     else:
                         value.fa.set_block_style()
             else:
-                _apply_list_style(value, style, list_keys)
+                _apply_list_style(value, style, list_keys, context)
     elif isinstance(data, list):
         for item in data:
-            _apply_list_style(item, style, list_keys)
+            if not context.is_ignored(item):
+                _apply_list_style(item, style, list_keys, context)
