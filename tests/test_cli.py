@@ -1,6 +1,8 @@
 import subprocess
 import sys
 
+from gh_formatter import __version__
+
 
 def test_cli_help():
     # Run CLI with --help to check that it displays usage information
@@ -11,6 +13,17 @@ def test_cli_help():
     )
     assert result.returncode == 0
     assert "Format GitHub Actions and Workflows" in result.stdout
+
+
+def test_cli_version():
+    # --version prints the package version and exits 0
+    result = subprocess.run(
+        [sys.executable, "-m", "gh_formatter.cli", "--version"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert __version__ in result.stdout
 
 
 def test_cli_formatting(tmp_path):
