@@ -50,19 +50,24 @@ def _apply_list_style(
             if context.is_frozen(data, key) or context.is_ignored(value):
                 continue
             if key in list_keys:
-                # Promote single string to list
-                if isinstance(value, str):
-                    value = CommentedSeq([value])
-                    data[key] = value
-
-                if isinstance(value, CommentedSeq):
-                    if style == "flow":
-                        value.fa.set_flow_style()
-                    else:
-                        value.fa.set_block_style()
+                _set_filter_list_style(data, key, value, style)
             else:
                 _apply_list_style(value, style, list_keys, context)
     elif isinstance(data, list):
         for item in data:
             if not context.is_ignored(item):
                 _apply_list_style(item, style, list_keys, context)
+
+
+def _set_filter_list_style(
+    container: Any, key: str, value: Any, style: str
+) -> None:
+    """Promotes a single string to a list and applies flow/block style."""
+    if isinstance(value, str):
+        value = CommentedSeq([value])
+        container[key] = value
+    if isinstance(value, CommentedSeq):
+        if style == "flow":
+            value.fa.set_flow_style()
+        else:
+            value.fa.set_block_style()

@@ -154,74 +154,100 @@ def _list_rules(engine: Engine) -> None:
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
-
     engine = Engine()
 
     if args.list_rules:
         _list_rules(engine)
         sys.exit(0)
-
     if not args.paths:
         parser.error("paths is required unless --list-rules is given")
 
-    try:
-        config = Config.load(args.config_path)
-    except ConfigError as e:
-        print(f"Configuration error: {e}", file=sys.stderr)
-        sys.exit(2)
-
+    config = _load_config(args.config_path)
     files = find_yaml_files(args.paths)
     if not files:
         print("No GitHub action or workflow files found.")
         sys.exit(0)
 
+    changed, errors = _format_files(files, engine, config, args)
+    _print_summary(len(files), changed, errors, args)
+    sys.exit(_exit_code(changed, errors, args))
+
+
+def _load_config(config_path: str | None) -> Config:
+    """Loads the config, exiting with code 2 on a configuration error."""
+    try:
+        return Config.load(config_path)
+    except ConfigError as e:
+        print(f"Configuration error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _format_files(
+    files: list[Path],
+    engine: Engine,
+    config: Config,
+    args: argparse.Namespace,
+) -> tuple[int, int]:
+    """Processes each file, prints its status, returns (changed, errors)."""
     # Plan input renames across the whole run so callers of local
     # workflows/actions (`uses: ./...`) stay consistent with their targets.
     plan = build_project_plan(files, config)
 
-    changed_files = 0
+    changed = 0
     errors = 0
-
     print(f"Checking {len(files)} files...")
-
     for f in files:
         result = process_file(
             f, engine, config, check=args.check, show_diff=args.diff, plan=plan
         )
-
         rel_path = os.path.relpath(f, os.getcwd())
-
+        _report_file(result, rel_path, args)
         if result.status is FileStatus.ERROR:
             errors += 1
-            print(f"[ERROR] {rel_path} - {result.message}")
         elif result.status is FileStatus.CHANGED:
-            changed_files += 1
-            if args.diff:
-                print(f"\n--- Diff for {rel_path} ---")
-                print(result.message)
-            elif args.check:
-                print(f"[X] {rel_path} - Needs formatting")
-            else:
-                print(f"[Fixed] {rel_path} - Formatted in-place")
-        elif args.check:
-            print(f"[ok] {rel_path}")
-
+            changed += 1
         for warning in result.warnings:
             print(f"[warn] {rel_path} - {warning}")
+    return changed, errors
 
+
+def _report_file(
+    result: FileResult, rel_path: str, args: argparse.Namespace
+) -> None:
+    """Prints the one-line status for a processed file."""
+    if result.status is FileStatus.ERROR:
+        print(f"[ERROR] {rel_path} - {result.message}")
+    elif result.status is FileStatus.CHANGED:
+        if args.diff:
+            print(f"\n--- Diff for {rel_path} ---")
+            print(result.message)
+        elif args.check:
+            print(f"[X] {rel_path} - Needs formatting")
+        else:
+            print(f"[Fixed] {rel_path} - Formatted in-place")
+    elif args.check:
+        print(f"[ok] {rel_path}")
+
+
+def _print_summary(
+    total: int, changed: int, errors: int, args: argparse.Namespace
+) -> None:
+    """Prints the run summary."""
     print("\nSummary:")
     if args.check or args.diff:
-        print(f"  {changed_files} files would be formatted.")
+        print(f"  {changed} files would be formatted.")
     else:
-        print(f"  {changed_files} files formatted.")
-    print(f"  {len(files) - changed_files - errors} files left unchanged.")
+        print(f"  {changed} files formatted.")
+    print(f"  {total - changed - errors} files left unchanged.")
     if errors:
         print(f"  {errors} errors occurred.")
 
-    if changed_files > 0 and (args.check or args.diff):
-        sys.exit(1)
 
-    sys.exit(1 if errors else 0)
+def _exit_code(changed: int, errors: int, args: argparse.Namespace) -> int:
+    """Returns the process exit code from the run outcome."""
+    if changed > 0 and (args.check or args.diff):
+        return 1
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

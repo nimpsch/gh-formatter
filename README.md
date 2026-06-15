@@ -384,14 +384,17 @@ gh-formatter/
 │   └── gh_formatter/
 │       ├── cli.py           # Command-line interface
 │       ├── casing.py        # Casing conversion + safe rename planning
+│       ├── comments.py      # Comment-preserving key reordering
 │       ├── config.py        # Configuration loading and validation
-│       ├── context.py       # Processing context (file type, warnings)
+│       ├── context.py       # Processing context (file type, warnings, directives)
+│       ├── directives.py    # Inline disable directives (gh-formatter:disable*)
 │       ├── discovery.py     # Workflow/action file discovery
 │       ├── engine.py        # Pipeline: rules -> dump -> post-processors
 │       ├── postprocess.py   # Text post-processors (blank lines)
 │       ├── project.py       # Cross-file rename planning
 │       ├── references.py    # Expression reference rewriting
-│       ├── utils.py         # ruamel.yaml round-trip helpers
+│       ├── utils.py         # ruamel round-trip + shared tree traversal
+│       ├── yamllint_sync.py # Derive indentation from a yamllint config
 │       └── rules/           # Tree formatting rules
 │           ├── base.py      # Base rule class
 │           ├── inputs.py    # Input naming rule
@@ -400,6 +403,7 @@ gh-formatter/
 │           ├── keys.py      # Key ordering rule
 │           ├── lists.py     # Trigger filter list style rule
 │           ├── names.py     # Display name capitalization rule
+│           ├── quotes.py    # Quote style normalization rule
 │           └── style.py     # Whitespace/boolean style rule
 ├── tests/                   # Test suite
 ├── examples/                # Example workflow files
