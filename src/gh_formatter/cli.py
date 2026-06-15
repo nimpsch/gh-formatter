@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from gh_formatter import __version__
 from gh_formatter.config import Config, ConfigError
 from gh_formatter.context import Context
 from gh_formatter.discovery import find_yaml_files
@@ -100,6 +101,12 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Format GitHub Actions and Workflows with custom stylesheets"
         )
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show the version and exit",
     )
     parser.add_argument(
         "paths", nargs="*", help="Paths to files or directories to format"
