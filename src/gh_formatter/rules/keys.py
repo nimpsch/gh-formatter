@@ -2,14 +2,13 @@
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import (
-    get_map,
-    get_seq,
+from gh_formatter.comments import (
     promote_step_lead_comments,
     reorder_commented_map,
 )
+from gh_formatter.context import Context
+from gh_formatter.rules.base import BaseRule
+from gh_formatter.utils import get_map, get_seq
 
 INPUT_KEY_ORDER = [
     "description",

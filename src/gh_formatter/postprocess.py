@@ -9,6 +9,7 @@ dumper produced.
 import re
 from abc import ABC, abstractmethod
 
+from gh_formatter.config import Config
 from gh_formatter.context import Context
 
 # A value position opening a block scalar, e.g. `run: |`, `run: |-`,
@@ -55,80 +56,110 @@ class BlankLinesProcessor(BasePostProcessor):
         return config.blank_line_between_steps or config.blank_line_between_jobs
 
     def apply(self, text: str, context: Context) -> str:
-        config = context.config
-        lines = text.split("\n")
-        result: list[str] = []
+        scanner = _BlankLineScanner(context.config)
+        return "\n".join(scanner.run(text.split("\n")))
 
-        # Block scalar tracking: never touch lines inside `run: |` etc.,
-        # where text like `steps:` or `- item` is script content.
-        in_block_scalar = False
-        block_scalar_indent = 0
 
-        in_steps = False
-        step_dash_col = 0
+class _BlankLineScanner:
+    """Tracks the steps/jobs/block-scalar scope line-by-line.
 
-        in_jobs = False
-        job_indent = config.indent
+    The serialized YAML is processed as a flat list of lines; this scanner
+    remembers where it is in the document so blank lines are inserted only
+    between real steps and jobs -- never inside a `run: |` script, where a
+    line like `- item` is just text.
+    """
 
+    def __init__(self, config: Config):
+        self.config = config
+        self.result: list[str] = []
+        self.in_block_scalar = False
+        self.block_scalar_indent = 0
+        self.in_steps = False
+        self.step_dash_col = 0
+        self.in_jobs = False
+        self.job_indent = config.indent
+
+    def run(self, lines: list[str]) -> list[str]:
         for line in lines:
-            stripped = line.strip()
-            indent = len(line) - len(line.lstrip(" "))
+            self._feed(line)
+        return self.result
 
-            if in_block_scalar:
-                if stripped and indent <= block_scalar_indent:
-                    in_block_scalar = False
-                else:
-                    result.append(line)
-                    continue
+    def _feed(self, line: str) -> None:
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" "))
 
-            is_content = bool(stripped) and not stripped.startswith("#")
+        if self._consume_block_scalar(line, stripped, indent):
+            return
 
-            if is_content:
-                # Leaving the current steps sequence?
-                if in_steps and (
-                    indent < step_dash_col
-                    or (
-                        indent == step_dash_col
-                        and not _is_sequence_item(stripped)
-                        and stripped != "steps:"
-                    )
-                ):
-                    in_steps = False
+        is_content = bool(stripped) and not stripped.startswith("#")
+        if is_content:
+            self._update_scopes(stripped, indent)
 
-                # Entering/leaving the root-level jobs block?
-                if indent == 0:
-                    in_jobs = stripped == "jobs:"
+        self._maybe_separate(stripped, indent, is_content)
+        self.result.append(line)
 
-            if stripped == "steps:":
-                in_steps = True
-                # ruamel places sequence dashes at key indent + offset
-                step_dash_col = indent + config.sequence_offset
+        if is_content and _BLOCK_SCALAR_OPENER.search(stripped):
+            self.in_block_scalar = True
+            self.block_scalar_indent = indent
 
-            elif (
-                config.blank_line_between_steps
-                and in_steps
-                and indent == step_dash_col
-                and _is_sequence_item(stripped)
-            ):
-                _separate_item(result, "steps:")
+    def _consume_block_scalar(
+        self, line: str, stripped: str, indent: int
+    ) -> bool:
+        """Swallows lines inside a block scalar; returns True when it does."""
+        if not self.in_block_scalar:
+            return False
+        if stripped and indent <= self.block_scalar_indent:
+            self.in_block_scalar = False  # dedented out: process normally
+            return False
+        self.result.append(line)
+        return True
 
-            elif (
-                config.blank_line_between_jobs
-                and in_jobs
-                and is_content
-                and indent == job_indent
-                and not _is_sequence_item(stripped)
-                and ":" in stripped
-            ):
-                _separate_item(result, "jobs:")
+    def _update_scopes(self, stripped: str, indent: int) -> None:
+        if self.in_steps and self._is_leaving_steps(stripped, indent):
+            self.in_steps = False
+        if indent == 0:
+            self.in_jobs = stripped == "jobs:"
 
-            result.append(line)
+    def _is_leaving_steps(self, stripped: str, indent: int) -> bool:
+        if indent < self.step_dash_col:
+            return True
+        return (
+            indent == self.step_dash_col
+            and not _is_sequence_item(stripped)
+            and stripped != "steps:"
+        )
 
-            if is_content and _BLOCK_SCALAR_OPENER.search(stripped):
-                in_block_scalar = True
-                block_scalar_indent = indent
+    def _maybe_separate(
+        self, stripped: str, indent: int, is_content: bool
+    ) -> None:
+        if stripped == "steps:":
+            self.in_steps = True
+            # ruamel places sequence dashes at key indent + offset
+            self.step_dash_col = indent + self.config.sequence_offset
+        elif self._starts_new_step(stripped, indent):
+            _separate_item(self.result, "steps:")
+        elif self._starts_new_job(stripped, indent, is_content):
+            _separate_item(self.result, "jobs:")
 
-        return "\n".join(result)
+    def _starts_new_step(self, stripped: str, indent: int) -> bool:
+        return (
+            self.config.blank_line_between_steps
+            and self.in_steps
+            and indent == self.step_dash_col
+            and _is_sequence_item(stripped)
+        )
+
+    def _starts_new_job(
+        self, stripped: str, indent: int, is_content: bool
+    ) -> bool:
+        return (
+            self.config.blank_line_between_jobs
+            and self.in_jobs
+            and is_content
+            and indent == self.job_indent
+            and not _is_sequence_item(stripped)
+            and ":" in stripped
+        )
 
 
 def _is_sequence_item(stripped: str) -> bool:

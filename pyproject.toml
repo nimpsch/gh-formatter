@@ -71,12 +71,15 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = [
-    "E", "W",  # pycodestyle
-    "F",      # Pyflakes
-    "I",      # isort
-    "D",      # pydocstyle
-    "UP",     # pyupgrade
-    "B",      # flake8-bugbear
+    "E", "W",   # pycodestyle
+    "F",        # Pyflakes
+    "I",        # isort
+    "D",        # pydocstyle
+    "UP",       # pyupgrade
+    "B",        # flake8-bugbear
+    "C90",      # mccabe: cap cyclomatic complexity (see max-complexity below)
+    "PLR0912",  # too many branches (nested if/else chains)
+    "PLR0915",  # too many statements (oversized functions)
 ]
 ignore = [
     "D100",   # Missing docstring in public module
@@ -90,11 +93,19 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "D",      # Ignore docstrings in tests
-    "E501",   # Ignore line length in tests
-    "E741",   # Ignore ambiguous variable name in tests (like 'l')
-    "W291",   # Ignore trailing whitespaces in tests
+    "D",        # Ignore docstrings in tests
+    "E501",     # Ignore line length in tests
+    "E741",     # Ignore ambiguous variable name in tests (like 'l')
+    "W291",     # Ignore trailing whitespaces in tests
+    "C901",     # Tests may be long/branchy; complexity caps are for src only
+    "PLR0912",
+    "PLR0915",
 ]
+
+[tool.ruff.lint.mccabe]
+# Functions above this cyclomatic complexity are flagged (C901). Keeps
+# oversized, deeply nested functions out of the codebase.
+max-complexity = 10
 
 [tool.ruff.lint.isort]
 # Pin first-party detection so import grouping is identical across ruff

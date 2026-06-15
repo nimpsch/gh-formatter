@@ -1,12 +1,11 @@
 """Rule: trim trailing whitespace in scripts and normalize booleans."""
 
-from typing import Any
-
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString, PreservedScalarString
 
 from gh_formatter.context import Context
 from gh_formatter.rules.base import BaseRule
+from gh_formatter.utils import iter_tree_slots
 
 _BLOCK_SCALAR_TYPES = (LiteralScalarString, PreservedScalarString)
 
@@ -32,30 +31,13 @@ class StyleRule(BaseRule):
         return True
 
     def apply(self, data: CommentedMap, context: Context) -> None:
-        _clean_recursively(data, context)
-
-
-def _clean_recursively(data: Any, context: Context) -> None:
-    if isinstance(data, dict):
-        for key, value in list(data.items()):
-            if context.is_frozen(data, key) or context.is_ignored(value):
-                continue
+        for container, key, value in iter_tree_slots(data, context):
             if key in _BOOLEAN_KEYS and isinstance(value, str):
                 normalized = _normalize_boolean(value)
                 if normalized is not None:
-                    data[key] = normalized
+                    container[key] = normalized
             elif isinstance(value, _BLOCK_SCALAR_TYPES):
-                data[key] = _trim_trailing_whitespace(value)
-            else:
-                _clean_recursively(value, context)
-    elif isinstance(data, list):
-        for index, item in enumerate(data):
-            if context.is_ignored(item):
-                continue
-            if isinstance(item, _BLOCK_SCALAR_TYPES):
-                data[index] = _trim_trailing_whitespace(item)
-            else:
-                _clean_recursively(item, context)
+                container[key] = _trim_trailing_whitespace(value)
 
 
 def _normalize_boolean(value: str) -> bool | None:
