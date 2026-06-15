@@ -216,3 +216,74 @@ jobs:
     assert 'echo "Hello"\n' in formatted
     assert 'echo "World"\n' in formatted
     assert 'echo "Hello"   \n' not in formatted
+
+
+def test_if_expressions_wrapped(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: bare
+        if: success()
+        run: echo hi
+      - name: already
+        if: ${{ always() }}
+        run: echo bye
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert "if: ${{ github.event_name == 'push' }}" in formatted  # job
+    assert "if: ${{ success() }}" in formatted  # step, bare -> wrapped
+    assert "if: ${{ always() }}" in formatted  # already wrapped, unchanged
+    assert formatted.count("${{ always() }}") == 1  # not double-wrapped
+
+
+def test_if_expressions_skip_booleans_and_toggle(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: literal
+        if: true
+        run: echo hi
+      - name: bare
+        if: success()
+        run: echo bye
+"""
+    # Booleans are left alone; the rule can be turned off entirely.
+    on = engine.format_string(
+        workflow, Context(".github/workflows/ci.yml", Config())
+    )
+    assert "if: true" in on  # YAML boolean untouched
+    assert "if: ${{ success() }}" in on
+
+    off = engine.format_string(
+        workflow,
+        Context(
+            ".github/workflows/ci.yml",
+            Config({"rules": {"if-expressions": False}}),
+        ),
+    )
+    assert "if: success()" in off  # left bare when disabled
+
+
+def test_if_above_id_in_step_order(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - id: step1
+        run: echo hi
+        if: ${{ success() }}
+        name: My step
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+    # Order: name, if, id, ...
+    assert formatted.index("name: My step") < formatted.index("if:")
+    assert formatted.index("if:") < formatted.index("id: step1")

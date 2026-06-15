@@ -18,6 +18,7 @@ A powerful and customizable formatting tool for GitHub Actions and Workflows. Au
   - Name capitalization
   - Job naming conventions
   - Input naming conventions
+  - `if:` expression normalization (wraps bare conditions in `${{ }}`)
   - Custom style rules
 - **Multiple Modes**:
   - `format`: Format files in-place
@@ -213,8 +214,8 @@ key_order_job: [name, if, needs, runs-on, uses, with, secrets, permissions,
                 environment, concurrency, strategy, container, services,
                 outputs, env, defaults, timeout-minutes, continue-on-error,
                 steps]
-key_order_step: [name, id, uses, run, with, env, timeout-minutes,
-                 continue-on-error, if, shell, working-directory]
+key_order_step: [name, if, id, uses, run, with, env, working-directory,
+                 shell, timeout-minutes, continue-on-error]
 
 # Disable individual rules by id (see `gh-formatter --list-rules`)
 rules: {}

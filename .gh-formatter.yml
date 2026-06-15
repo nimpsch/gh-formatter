@@ -169,6 +169,7 @@ key_order_job:
   - if
   - needs
   - runs-on
+  - env
   - uses
   - with
   - secrets
@@ -179,7 +180,6 @@ key_order_job:
   - container
   - services
   - outputs
-  - env
   - defaults
   - timeout-minutes
   - continue-on-error
@@ -191,11 +191,11 @@ key_order_step:
   - name
   - id
   - if
+  - env
   - uses
+  - continue-on-error
   - run
   - with
-  - env
-  - timeout-minutes
-  - continue-on-error
-  - shell
   - working-directory
+  - shell
+  - timeout-minutes

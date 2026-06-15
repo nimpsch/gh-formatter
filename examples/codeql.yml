@@ -1,0 +1,59 @@
+# CodeQL "Advanced" setup: scans the repository for security vulnerabilities
+# on pushes, pull requests, and a weekly schedule. Adjust the language matrix
+# below to match your codebase.
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "30 1 * * 0"  # weekly, Sunday 01:30 UTC
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # Larger runners can cut analysis time; see the CodeQL docs for sizing.
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      security-events: write  # required to upload analysis results
+      packages: read          # required to fetch private CodeQL packs
+      actions: read           # only needed for private repositories
+      contents: read
+    strategy:
+      fail-fast: false
+      # One run per language; use build-mode "manual" for compiled languages.
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Initializes the CodeQL tools for scanning.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # Only runs when build-mode is "manual"; replace with your build commands.
+      - name: Run manual build steps
+        if: ${{ matrix.build-mode == 'manual' }}
+        run: |
+          echo "Replace this with the commands to build your code, e.g.:"
+          echo "  make bootstrap"
+          echo "  make release"
+          exit 1
+        shell: bash
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

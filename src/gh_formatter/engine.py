@@ -7,6 +7,7 @@ from gh_formatter.directives import mark_disabled_nodes, scan_disabled
 from gh_formatter.postprocess import BasePostProcessor, BlankLinesProcessor
 from gh_formatter.rules.base import BaseRule
 from gh_formatter.rules.callers import CallerInputNamingRule
+from gh_formatter.rules.if_expressions import IfExpressionRule
 from gh_formatter.rules.inputs import InputNamingRule
 from gh_formatter.rules.jobs import JobNamingRule
 from gh_formatter.rules.keys import KeyOrderingRule
@@ -28,6 +29,7 @@ def default_rules() -> list[BaseRule]:
         ListStyleRule(),
         StyleRule(),
         QuoteStyleRule(),
+        IfExpressionRule(),
     ]
 
 

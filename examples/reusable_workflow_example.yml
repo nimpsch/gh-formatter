@@ -60,6 +60,9 @@ jobs:
 
       - name: Publish
         id: publish
+        env:
+          DEPLOY_TOKEN: "${{ secrets.deploy-token }}"
+          IMAGE_TAG: "${{ inputs.image-tag }}"
         run: |
           if [ "${{ inputs.dry-run }}" = "true" ]; then
             echo "Dry run: would deploy ${IMAGE_TAG} to ${{ inputs.target-env }}"
@@ -67,7 +70,4 @@ jobs:
             echo "Deploying ${IMAGE_TAG} to ${{ inputs.target-env }}"
           fi
           echo "url=https://${{ inputs.target-env }}.example.com" >> "$GITHUB_OUTPUT"
-        env:
-          DEPLOY_TOKEN: "${{ secrets.deploy-token }}"
-          IMAGE_TAG: "${{ inputs.image-tag }}"
         shell: bash

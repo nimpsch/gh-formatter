@@ -52,9 +52,8 @@ runs:
       run: |
         echo "Installing dependencies with Node ${{ inputs.node-version }}"
         npm ci
-      shell: bash
       working-directory: "${{ inputs.working-directory }}"
-
+      shell: bash
 branding:
   icon: package
   color: blue
