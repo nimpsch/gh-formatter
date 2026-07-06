@@ -26,6 +26,9 @@ class Context:
         self.config = config
         self.file_type: FileType = self._detect_file_type()
         self.warnings: list[str] = []
+        # Hard lint errors (e.g. a caller input mismatch under the "error"
+        # policy); the CLI fails the run when any are present.
+        self.errors: list[str] = []
         # Set by the CLI for cross-file rename propagation; None when
         # formatting a file in isolation.
         self.project_plan: ProjectPlan | None = None
@@ -38,6 +41,10 @@ class Context:
     def add_warning(self, message: str) -> None:
         """Records a warning to be surfaced to the user."""
         self.warnings.append(message)
+
+    def add_error(self, message: str) -> None:
+        """Records a lint error that must be fixed (fails the run)."""
+        self.errors.append(message)
 
     def freeze_key(self, mapping: object, key: str) -> None:
         """Marks a key as exempt from renaming, reordering, and reformatting."""

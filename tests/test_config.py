@@ -12,6 +12,8 @@ def test_defaults():
     assert config.job_casing == "snake_case"
     assert config.list_style == "block"
     assert config.quote_style == "double"
+    assert config.caller_inputs == "error"
+    assert config.alphabetize == ["env", "inputs", "outputs", "secrets", "with"]
     assert config.blank_line_between_steps is True
     assert config.blank_line_between_jobs is True
     assert "branches" in config.list_keys
@@ -44,6 +46,7 @@ def test_rule_toggles():
         {"blank_line_between_steps": "yes"},
         {"sequence_offset": 4, "sequence_indent": 4},
         {"quote_style": "backtick"},
+        {"caller_inputs": "maybe"},
         {"defer_to_yamllint": 123},
     ],
 )

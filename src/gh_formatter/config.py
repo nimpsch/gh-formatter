@@ -11,6 +11,7 @@ VALID_CASINGS = ("dash-case", "snake_case")
 VALID_LIST_STYLES = ("flow", "block")
 VALID_LINE_ENDINGS = ("preserve", "lf")
 VALID_QUOTE_STYLES = ("preserve", "single", "double")
+VALID_CALLER_INPUTS = ("ignore", "error", "fix")
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "indent": 2,
@@ -40,8 +41,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # leaves each scalar's existing quoting untouched. Plain (unquoted)
     # scalars are never force-quoted.
     "quote_style": "double",
+    # How to handle a caller's with: keys that don't match a LOCAL reusable
+    # workflow/action's declared inputs (uses: ./...):
+    #   "error" (default): report the mismatch and fail the run
+    #   "fix":             rename the caller's keys to match (at own risk)
+    #   "ignore":          leave caller inputs alone
+    "caller_inputs": "error",
     # "flow" ([a, b]) or "block" (- a\n- b)
     "list_style": "block",
+    # Mapping blocks whose entries are sorted alphabetically (their order
+    # never carries meaning). Empty list disables sorting entirely.
+    "alphabetize": ["env", "inputs", "outputs", "secrets", "with"],
     "blank_line_between_steps": True,
     "blank_line_between_jobs": True,
     # Trigger filter keys under `on:` whose values are normalized to lists
@@ -79,7 +89,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "if",
         "needs",
         "runs-on",
-        # Reusable workflow call jobs
+        "env",
         "uses",
         "with",
         "secrets",
@@ -90,25 +100,23 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "container",
         "services",
         "outputs",
-        "env",
         "defaults",
         "timeout-minutes",
         "continue-on-error",
-        # steps last: it is the bulk of the job
         "steps",
     ],
     "key_order_step": [
         "name",
         "id",
         "if",
+        "env",
         "uses",
         "run",
         "with",
-        "env",
+        "working-directory",
+        "shell",
         "timeout-minutes",
         "continue-on-error",
-        "shell",
-        "working-directory",
     ],
     # Per-rule toggles, e.g. {"capitalize-names": false}
     "rules": {},
@@ -166,9 +174,13 @@ class Config:
         self.quote_style = _require_choice(
             merged, "quote_style", VALID_QUOTE_STYLES
         )
+        self.caller_inputs = _require_choice(
+            merged, "caller_inputs", VALID_CALLER_INPUTS
+        )
         self.list_style = _require_choice(
             merged, "list_style", VALID_LIST_STYLES
         )
+        self.alphabetize = _require_str_list(merged, "alphabetize")
         self.blank_line_between_steps = _require_bool(
             merged, "blank_line_between_steps"
         )
