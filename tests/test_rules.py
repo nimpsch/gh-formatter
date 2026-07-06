@@ -216,3 +216,142 @@ jobs:
     assert 'echo "Hello"\n' in formatted
     assert 'echo "World"\n' in formatted
     assert 'echo "Hello"   \n' not in formatted
+
+
+def test_if_expressions_wrapped(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: bare
+        if: success()
+        run: echo hi
+      - name: already
+        if: ${{ always() }}
+        run: echo bye
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert "if: ${{ github.event_name == 'push' }}" in formatted  # job
+    assert "if: ${{ success() }}" in formatted  # step, bare -> wrapped
+    assert "if: ${{ always() }}" in formatted  # already wrapped, unchanged
+    assert formatted.count("${{ always() }}") == 1  # not double-wrapped
+
+
+def test_if_expressions_skip_booleans_and_toggle(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: literal
+        if: true
+        run: echo hi
+      - name: bare
+        if: success()
+        run: echo bye
+"""
+    # Booleans are left alone; the rule can be turned off entirely.
+    on = engine.format_string(
+        workflow, Context(".github/workflows/ci.yml", Config())
+    )
+    assert "if: true" in on  # YAML boolean untouched
+    assert "if: ${{ success() }}" in on
+
+    off = engine.format_string(
+        workflow,
+        Context(
+            ".github/workflows/ci.yml",
+            Config({"rules": {"if-expressions": False}}),
+        ),
+    )
+    assert "if: success()" in off  # left bare when disabled
+
+
+def test_if_sits_above_step_body(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+        if: ${{ success() }}
+        name: My step
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+    # The gate (`if`) is ordered above the step body (`run`/`uses`).
+    assert formatted.index("name: My step") < formatted.index("if:")
+    assert formatted.index("if:") < formatted.index("run: echo hi")
+
+
+def test_alphabetize_sorts_configured_blocks(engine):
+    workflow = """name: ci
+on:
+  workflow_call:
+    inputs:
+      zeta:
+        type: string
+      alpha:
+        type: string
+    secrets:
+      Z_TOKEN:
+        required: true
+      a-token:
+        required: false
+env:
+  ZED: "1"
+  ALPHA: "2"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: octo/repo
+          fetch-depth: 0
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert formatted.index("alpha:") < formatted.index("zeta:")
+    # Case-insensitive: a-token sorts before Z_TOKEN.
+    assert formatted.index("a-token:") < formatted.index("Z_TOKEN:")
+    assert formatted.index("ALPHA:") < formatted.index("ZED:")
+    assert formatted.index("fetch-depth:") < formatted.index("repository:")
+
+
+def test_alphabetize_comment_travels_with_entry(engine):
+    workflow = """name: ci
+on:
+  workflow_call:
+    inputs:
+      zeta:
+        type: string
+      # explains alpha
+      alpha:
+        type: string
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    # The pre-comment moves with alpha to the top, above its new position.
+    assert "# explains alpha\n      alpha:" in formatted
+    assert engine.format_string(formatted, context) == formatted
+
+
+def test_alphabetize_disabled_via_empty_list(engine):
+    workflow = """name: ci
+env:
+  ZED: "1"
+  ALPHA: "2"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    context = Context(".github/workflows/ci.yml", Config({"alphabetize": []}))
+    formatted = engine.format_string(workflow, context)
+    assert formatted.index("ZED:") < formatted.index("ALPHA:")

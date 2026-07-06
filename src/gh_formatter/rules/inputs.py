@@ -42,6 +42,28 @@ def find_input_maps(
                 yield inputs_map
 
 
+def callable_input_names(
+    data: CommentedMap, context: Context
+) -> set[str] | None:
+    """Input names a `uses:` caller may pass to this file.
+
+    For an action that is its `inputs`; for a reusable workflow it is
+    `on.workflow_call.inputs` only (workflow_dispatch inputs are not passed
+    through `uses:`). Returns an empty set when the file is callable but
+    declares no inputs, and None when it cannot be called at all (a workflow
+    without a `workflow_call` trigger) -- callers of the latter cannot be
+    input-checked.
+    """
+    if context.file_type == "action":
+        inputs_map = get_map(data, "inputs")
+    else:
+        call = get_map(get_map(data, "on"), "workflow_call")
+        if call is None:
+            return None  # not a reusable workflow
+        inputs_map = get_map(call, "inputs")
+    return set(inputs_map.keys()) if inputs_map is not None else set()
+
+
 def plan_input_renames(data: CommentedMap, context: Context) -> dict[str, str]:
     """Computes the input renames this file would receive, without applying.
 

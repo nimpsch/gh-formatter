@@ -81,7 +81,7 @@ def _format_all(repo, config=None):
 
 
 def test_caller_with_keys_follow_workflow_input_rename(repo):
-    _format_all(repo)
+    _format_all(repo, Config({"caller_inputs": "fix"}))
 
     template = (repo / ".github" / "workflows" / "template.yml").read_text(
         encoding="utf-8"
@@ -99,7 +99,7 @@ def test_caller_with_keys_follow_workflow_input_rename(repo):
 
 
 def test_caller_with_keys_follow_action_input_rename(repo):
-    _format_all(repo)
+    _format_all(repo, Config({"caller_inputs": "fix"}))
 
     action = (repo / ".github" / "actions" / "setup" / "action.yml").read_text(
         encoding="utf-8"
@@ -170,3 +170,249 @@ def test_resolve_local_uses(repo):
     ) in candidates
     # Non-local references resolve to nothing
     assert resolve_local_uses("actions/checkout@v4", root) == []
+
+
+def _errors_for(repo, target_name, config=None):
+    """Returns the lint errors emitted while processing `target_name`."""
+    config = config or Config()
+    engine = Engine()
+    files = sorted(repo.rglob("*.yml"))
+    plan = build_project_plan(files, config)
+    errors: list[str] = []
+    for f in files:
+        result = process_file(
+            f, engine, config, check=True, show_diff=False, plan=plan
+        )
+        if f.name == target_name:
+            errors = result.errors
+    return errors
+
+
+def test_caller_undeclared_input_errors(repo):
+    """A with: key the local target does not declare is a (default) error."""
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commit-sha: abc123
+      bogus-input: nope
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert any("bogus-input" in e for e in errors)
+    # The valid input is not reported.
+    assert not any("'commit-sha' is not" in e for e in errors)
+
+
+def test_caller_input_casing_mismatch_suggests(repo):
+    """A near-miss (casing/separator) yields a did-you-mean suggestion."""
+    # Target already declares the canonical name; the caller drifted to
+    # camelCase. There is no rename to propagate, so the mismatch persists
+    # and is reported with a suggestion.
+    template = repo / ".github" / "workflows" / "template.yml"
+    template.write_text(
+        """name: Template
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        type: string
+jobs:
+  run:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commitSha: abc123
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert any("commitSha" in e and "commit-sha" in e for e in errors)
+
+
+def test_caller_fix_mode_renames_mismatch(repo):
+    """In fix mode the caller's drifted key is renamed instead of erroring."""
+    template = repo / ".github" / "workflows" / "template.yml"
+    template.write_text(
+        """name: Template
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        type: string
+jobs:
+  run:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+    caller_path = repo / ".github" / "workflows" / "caller.yml"
+    caller_path.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commitSha: abc123
+""",
+        encoding="utf-8",
+    )
+    _format_all(repo, Config({"caller_inputs": "fix"}))
+    caller = caller_path.read_text(encoding="utf-8")
+    assert "commit-sha: abc123" in caller
+    assert "commitSha" not in caller
+
+
+def test_caller_ignore_mode_is_silent(repo):
+    """In ignore mode a mismatch is neither fixed nor reported."""
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      bogus-input: nope
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(
+        repo, "caller.yml", Config({"caller_inputs": "ignore"})
+    )
+    assert errors == []
+
+
+def test_caller_marketplace_uses_not_validated(repo):
+    """Non-local (marketplace) calls are never validated."""
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          anything-goes: true
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert not any("anything-goes" in e for e in errors)
+
+
+def test_caller_non_local_references_never_validated(repo):
+    """Only `uses: ./...` is checked: remote reusable workflows, versioned
+    marketplace actions, and docker:// references are all left alone."""
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  remote_reusable:
+    uses: octo-org/other-repo/.github/workflows/deploy.yml@main
+    with:
+      undeclared-remote-input: x
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker://alpine:3.19
+        with:
+          args: whatever
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert errors == []
+
+
+def test_caller_fix_mode_errors_on_unfixable_key(repo):
+    """A key with no close match cannot be auto-fixed and stays an error."""
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      totally-unknown: x
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml", Config({"caller_inputs": "fix"}))
+    assert any("totally-unknown" in e for e in errors)
+
+
+def test_caller_zero_input_target_is_checked(repo):
+    """Passing inputs to a callable target that declares none is an error."""
+    template = repo / ".github" / "workflows" / "template.yml"
+    template.write_text(
+        """name: Template
+on:
+  workflow_call: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      anything: x
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert any("anything" in e for e in errors)
+
+
+def test_non_callable_target_not_checked(repo):
+    """A plain workflow (no workflow_call) cannot be input-checked."""
+    template = repo / ".github" / "workflows" / "template.yml"
+    template.write_text(
+        """name: Template
+on: push
+jobs:
+  run:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      anything: x
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert errors == []

@@ -19,7 +19,6 @@ on:
         required: false
         default: true
         type: boolean
-
 permissions:
   contents: read
 
@@ -30,9 +29,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/reusable_workflow_example.yml
     with:
-      target-env: "${{ github.event.inputs.deploy-env }}-${{ matrix.region }}"
-      image-tag: "${{ github.sha }}"  # deploy exactly this commit
       dry-run: "${{ github.event.inputs.dry-run }}"
+      image-tag: "${{ github.sha }}"  # deploy exactly this commit
+      target-env: "${{ github.event.inputs.deploy-env }}-${{ matrix.region }}"
     secrets:
       # Forward the org secret to the reusable workflow.
       deploy-token: "${{ secrets.DEPLOY_TOKEN }}"

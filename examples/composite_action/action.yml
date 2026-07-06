@@ -7,19 +7,18 @@ description: "Check out, install a toolchain, and cache dependencies"
 
 author: "Sebastian Nimpsch"
 inputs:
-  node-version:
-    description: "Node.js version to install"
-    required: false
-    default: "20"  # current LTS
   install-dependencies:
     description: "Whether to run the dependency install step"
     required: false
     default: true
+  node-version:
+    description: "Node.js version to install"
+    required: false
+    default: "20"  # current LTS
   working-directory:
     description: "Directory to run install commands in"
     required: false
     default: "."
-
 # Outputs are wired from step ids below so callers can react to them.
 outputs:
   cache-hit:
@@ -28,7 +27,6 @@ outputs:
   node-version:
     description: "The resolved Node.js version"
     value: "${{ steps.setup-node.outputs.node-version }}"
-
 runs:
   using: composite  # composite actions run a list of steps, like a job
   steps:
@@ -42,9 +40,9 @@ runs:
       id: cache
       uses: actions/cache@v4
       with:
-        path: "${{ inputs.working-directory }}/node_modules"
         # Cache key changes whenever the lockfile or Node version changes.
         key: "node-${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json') }}"
+        path: "${{ inputs.working-directory }}/node_modules"
 
     # Skip the install entirely on a cache hit (or when disabled).
     - name: Install dependencies
@@ -52,9 +50,8 @@ runs:
       run: |
         echo "Installing dependencies with Node ${{ inputs.node-version }}"
         npm ci
-      shell: bash
       working-directory: "${{ inputs.working-directory }}"
-
+      shell: bash
 branding:
   icon: package
   color: blue
