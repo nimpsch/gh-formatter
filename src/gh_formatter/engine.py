@@ -5,8 +5,9 @@ from ruamel.yaml.comments import CommentedMap
 from gh_formatter.context import Context
 from gh_formatter.directives import mark_disabled_nodes, scan_disabled
 from gh_formatter.postprocess import BasePostProcessor, BlankLinesProcessor
+from gh_formatter.rules.alphabetize import AlphabetizeRule
 from gh_formatter.rules.base import BaseRule
-from gh_formatter.rules.callers import CallerInputNamingRule
+from gh_formatter.rules.callers import CallerInputRule
 from gh_formatter.rules.if_expressions import IfExpressionRule
 from gh_formatter.rules.inputs import InputNamingRule
 from gh_formatter.rules.jobs import JobNamingRule
@@ -23,13 +24,15 @@ def default_rules() -> list[BaseRule]:
     return [
         KeyOrderingRule(),
         InputNamingRule(),
-        CallerInputNamingRule(),
+        CallerInputRule(),
         JobNamingRule(),
         CapitalizeNamesRule(),
         ListStyleRule(),
         StyleRule(),
         QuoteStyleRule(),
         IfExpressionRule(),
+        # Last: sorted order must reflect the final (renamed) key names.
+        AlphabetizeRule(),
     ]
 
 

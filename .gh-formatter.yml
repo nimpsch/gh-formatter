@@ -85,6 +85,34 @@ quote_style: "double"
 defer_to_yamllint: false
 
 
+# CALLER INPUTS
+# =============
+
+# How to handle a caller's with: keys that don't match a LOCAL reusable
+# workflow/action's declared inputs (uses: ./...). Marketplace actions are
+# never checked.
+# Options:
+#   "error" (default): report the mismatch as an error and fail the run
+#   "fix":             rename the caller's keys to match (at your own risk)
+#   "ignore":          leave caller inputs alone
+caller_inputs: "error"
+
+
+# ALPHABETICAL SORTING
+# ====================
+
+# Mapping blocks whose entries are sorted alphabetically (case-insensitive).
+# Entry order in these blocks never carries meaning, so sorting them makes
+# diffs and reviews predictable. Set to [] to disable sorting entirely, or
+# add further block names (e.g. "permissions").
+alphabetize:
+  - env
+  - inputs
+  - outputs
+  - secrets
+  - with
+
+
 # LIST FORMATTING STYLE
 # =====================
 

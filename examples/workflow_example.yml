@@ -55,8 +55,8 @@ permissions:
   pull-requests: write
 
 env:
-  PYTHON_DEFAULT: "3.12"  # keep in sync with the lint job
   FORCE_COLOR: "1"
+  PYTHON_DEFAULT: "3.12"  # keep in sync with the lint job
 
 jobs:
   # Fast feedback: lint before spending time on the test matrix.
@@ -137,10 +137,10 @@ jobs:
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-  # Deploy only for tag pushes (v*), and only after tests pass.
           name: "coverage-${{ matrix.python-version }}"
           path: .coverage*
 
+  # Deploy only for tag pushes (v*), and only after tests pass.
   deploy:
     name: Deploy
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}

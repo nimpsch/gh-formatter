@@ -271,19 +271,87 @@ jobs:
     assert "if: success()" in off  # left bare when disabled
 
 
-def test_if_above_id_in_step_order(engine):
+def test_if_sits_above_step_body(engine):
     workflow = """name: ci
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - id: step1
-        run: echo hi
+      - run: echo hi
         if: ${{ success() }}
         name: My step
 """
     context = Context(".github/workflows/ci.yml", Config())
     formatted = engine.format_string(workflow, context)
-    # Order: name, if, id, ...
+    # The gate (`if`) is ordered above the step body (`run`/`uses`).
     assert formatted.index("name: My step") < formatted.index("if:")
-    assert formatted.index("if:") < formatted.index("id: step1")
+    assert formatted.index("if:") < formatted.index("run: echo hi")
+
+
+def test_alphabetize_sorts_configured_blocks(engine):
+    workflow = """name: ci
+on:
+  workflow_call:
+    inputs:
+      zeta:
+        type: string
+      alpha:
+        type: string
+    secrets:
+      Z_TOKEN:
+        required: true
+      a-token:
+        required: false
+env:
+  ZED: "1"
+  ALPHA: "2"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: octo/repo
+          fetch-depth: 0
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert formatted.index("alpha:") < formatted.index("zeta:")
+    # Case-insensitive: a-token sorts before Z_TOKEN.
+    assert formatted.index("a-token:") < formatted.index("Z_TOKEN:")
+    assert formatted.index("ALPHA:") < formatted.index("ZED:")
+    assert formatted.index("fetch-depth:") < formatted.index("repository:")
+
+
+def test_alphabetize_comment_travels_with_entry(engine):
+    workflow = """name: ci
+on:
+  workflow_call:
+    inputs:
+      zeta:
+        type: string
+      # explains alpha
+      alpha:
+        type: string
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    # The pre-comment moves with alpha to the top, above its new position.
+    assert "# explains alpha\n      alpha:" in formatted
+    assert engine.format_string(formatted, context) == formatted
+
+
+def test_alphabetize_disabled_via_empty_list(engine):
+    workflow = """name: ci
+env:
+  ZED: "1"
+  ALPHA: "2"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    context = Context(".github/workflows/ci.yml", Config({"alphabetize": []}))
+    formatted = engine.format_string(workflow, context)
+    assert formatted.index("ZED:") < formatted.index("ALPHA:")

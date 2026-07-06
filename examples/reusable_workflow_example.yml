@@ -6,20 +6,20 @@ name: Reusable Deploy
 on:
   workflow_call:
     inputs:
-      target-env:
-        description: "The environment to deploy to"
-        required: true
-        type: string
-      image-tag:
-        description: "Container image tag to deploy"
-        required: false
-        default: "latest"  # callers usually pass the commit SHA
-        type: string
       dry-run:
         description: "Skip the actual deploy and only log actions"
         required: false
         default: false
         type: boolean
+      image-tag:
+        description: "Container image tag to deploy"
+        required: false
+        default: "latest"  # callers usually pass the commit SHA
+        type: string
+      target-env:
+        description: "The environment to deploy to"
+        required: true
+        type: string
       timeout-minutes:
         description: "Maximum minutes to wait for the deploy"
         required: false
@@ -34,7 +34,6 @@ on:
       deploy-url:
         description: "Public URL of the deployed environment"
         value: "${{ jobs.deploy.outputs.url }}"
-
 permissions:
   contents: read
 

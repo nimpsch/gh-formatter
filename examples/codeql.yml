@@ -40,8 +40,8 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+          languages: ${{ matrix.language }}
 
       # Only runs when build-mode is "manual"; replace with your build commands.
       - name: Run manual build steps
