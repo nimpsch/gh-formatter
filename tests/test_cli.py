@@ -82,3 +82,24 @@ name: Workflow
         text=True,
     )
     assert result_check_again.returncode == 0
+
+
+def test_exit_code():
+    import argparse
+
+    from gh_formatter.cli import _Counts, _exit_code
+
+    plain = argparse.Namespace(check=False, diff=False)
+    check = argparse.Namespace(check=True, diff=False)
+
+    # Clean run -> success.
+    assert _exit_code(_Counts(), plain) == 0
+    # Warnings alone never fail the run.
+    assert _exit_code(_Counts(warnings=3), plain) == 0
+    # Lint errors (e.g. caller-input mismatches) always fail.
+    assert _exit_code(_Counts(lint_errors=1), plain) == 1
+    # Processing errors fail.
+    assert _exit_code(_Counts(errors=1), plain) == 1
+    # In --check mode, files needing formatting fail; not in format mode.
+    assert _exit_code(_Counts(changed=2), check) == 1
+    assert _exit_code(_Counts(changed=2), plain) == 0

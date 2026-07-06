@@ -27,6 +27,7 @@ class FileResult:
     status: FileStatus
     message: str
     warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 def process_file(
@@ -62,11 +63,15 @@ def process_file(
             FileStatus.ERROR,
             f"Failed to parse/format file: {e}",
             context.warnings,
+            context.errors,
         )
 
     if content == formatted_content and not needs_newline_fix:
         return FileResult(
-            FileStatus.UNCHANGED, "Already formatted", context.warnings
+            FileStatus.UNCHANGED,
+            "Already formatted",
+            context.warnings,
+            context.errors,
         )
 
     if show_diff:
@@ -76,11 +81,16 @@ def process_file(
             fromfile=f"a/{file_path.name}",
             tofile=f"b/{file_path.name}",
         )
-        return FileResult(FileStatus.CHANGED, "".join(diff), context.warnings)
+        return FileResult(
+            FileStatus.CHANGED, "".join(diff), context.warnings, context.errors
+        )
 
     if check:
         return FileResult(
-            FileStatus.CHANGED, "Needs formatting", context.warnings
+            FileStatus.CHANGED,
+            "Needs formatting",
+            context.warnings,
+            context.errors,
         )
 
     try:
@@ -88,11 +98,17 @@ def process_file(
             f.write(formatted_content)
     except Exception as e:
         return FileResult(
-            FileStatus.ERROR, f"Failed to write file: {e}", context.warnings
+            FileStatus.ERROR,
+            f"Failed to write file: {e}",
+            context.warnings,
+            context.errors,
         )
 
     return FileResult(
-        FileStatus.CHANGED, "Formatted successfully", context.warnings
+        FileStatus.CHANGED,
+        "Formatted successfully",
+        context.warnings,
+        context.errors,
     )
 
 
@@ -168,9 +184,9 @@ def main() -> None:
         print("No GitHub action or workflow files found.")
         sys.exit(0)
 
-    changed, errors = _format_files(files, engine, config, args)
-    _print_summary(len(files), changed, errors, args)
-    sys.exit(_exit_code(changed, errors, args))
+    counts = _format_files(files, engine, config, args)
+    _print_summary(len(files), counts, args)
+    sys.exit(_exit_code(counts, args))
 
 
 def _load_config(config_path: str | None) -> Config:
@@ -182,19 +198,27 @@ def _load_config(config_path: str | None) -> Config:
         sys.exit(2)
 
 
+@dataclass
+class _Counts:
+    """Tallies across a run, used for the summary and exit code."""
+
+    changed: int = 0
+    errors: int = 0  # files that failed to read/parse/write
+    lint_errors: int = 0  # caller-input (and similar) errors that must be fixed
+    warnings: int = 0
+
+
 def _format_files(
     files: list[Path],
     engine: Engine,
     config: Config,
     args: argparse.Namespace,
-) -> tuple[int, int]:
-    """Processes each file, prints its status, returns (changed, errors)."""
-    # Plan input renames across the whole run so callers of local
-    # workflows/actions (`uses: ./...`) stay consistent with their targets.
+) -> _Counts:
+    """Processes each file, prints output, and returns the run tallies."""
+    # Plan the canonical inputs of local targets so callers can be checked.
     plan = build_project_plan(files, config)
 
-    changed = 0
-    errors = 0
+    counts = _Counts()
     print(f"Checking {len(files)} files...")
     for f in files:
         result = process_file(
@@ -203,12 +227,16 @@ def _format_files(
         rel_path = os.path.relpath(f, os.getcwd())
         _report_file(result, rel_path, args)
         if result.status is FileStatus.ERROR:
-            errors += 1
+            counts.errors += 1
         elif result.status is FileStatus.CHANGED:
-            changed += 1
+            counts.changed += 1
+        for error in result.errors:
+            counts.lint_errors += 1
+            print(f"[error] {rel_path} - {error}")
         for warning in result.warnings:
+            counts.warnings += 1
             print(f"[warn] {rel_path} - {warning}")
-    return changed, errors
+    return counts
 
 
 def _report_file(
@@ -230,24 +258,31 @@ def _report_file(
 
 
 def _print_summary(
-    total: int, changed: int, errors: int, args: argparse.Namespace
+    total: int, counts: _Counts, args: argparse.Namespace
 ) -> None:
     """Prints the run summary."""
     print("\nSummary:")
     if args.check or args.diff:
-        print(f"  {changed} files would be formatted.")
+        print(f"  {counts.changed} files would be formatted.")
     else:
-        print(f"  {changed} files formatted.")
-    print(f"  {total - changed - errors} files left unchanged.")
-    if errors:
-        print(f"  {errors} errors occurred.")
+        print(f"  {counts.changed} files formatted.")
+    unchanged = total - counts.changed - counts.errors
+    print(f"  {unchanged} files left unchanged.")
+    if counts.warnings:
+        print(f"  {counts.warnings} warnings.")
+    if counts.lint_errors:
+        print(f"  {counts.lint_errors} errors must be fixed.")
+    if counts.errors:
+        print(f"  {counts.errors} files could not be processed.")
 
 
-def _exit_code(changed: int, errors: int, args: argparse.Namespace) -> int:
+def _exit_code(counts: _Counts, args: argparse.Namespace) -> int:
     """Returns the process exit code from the run outcome."""
-    if changed > 0 and (args.check or args.diff):
+    if counts.changed > 0 and (args.check or args.diff):
         return 1
-    return 1 if errors else 0
+    if counts.errors or counts.lint_errors:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

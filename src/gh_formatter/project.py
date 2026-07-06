@@ -17,7 +17,7 @@ from ruamel.yaml.comments import CommentedMap
 from gh_formatter.config import Config
 from gh_formatter.context import Context
 from gh_formatter.directives import mark_disabled_nodes, scan_disabled
-from gh_formatter.rules.inputs import plan_input_renames
+from gh_formatter.rules.inputs import callable_input_names, plan_input_renames
 from gh_formatter.utils import load_yaml
 
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
@@ -25,45 +25,58 @@ WORKFLOW_SUFFIXES = (".yml", ".yaml")
 
 @dataclass
 class ProjectPlan:
-    """Planned input renames per resolved target file path."""
+    """Each local target's canonical (post-format) declared input names.
 
-    input_renames: dict[Path, dict[str, str]] = field(default_factory=dict)
+    Callers are checked/fixed against these names; see CallerInputRule.
+    """
 
-    def renames_for(self, candidates: list[Path]) -> dict[str, str]:
-        """Returns the renames of the first candidate present in the plan."""
+    input_names: dict[Path, set[str]] = field(default_factory=dict)
+
+    def input_names_for(self, candidates: list[Path]) -> set[str] | None:
+        """Declared input names of the first known candidate, else None.
+
+        None means no candidate is a local target in this run, so the caller
+        cannot be checked.
+        """
         for candidate in candidates:
-            renames = self.input_renames.get(candidate)
-            if renames:
-                return renames
-        return {}
+            if candidate in self.input_names:
+                return self.input_names[candidate]
+        return None
 
 
 def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:
-    """Computes the input renames every file in the run will receive."""
+    """Records each local target's canonical declared input names."""
     plan = ProjectPlan()
-    if not config.rule_enabled("input-naming"):
-        return plan
+    if config.caller_inputs == "ignore":
+        return plan  # no cross-file checking needed
 
+    naming_on = config.rule_enabled("input-naming")
     for file_path in files:
         try:
             content = file_path.read_text(encoding="utf-8")
             disable_file, disabled_lines = scan_disabled(content)
             if disable_file:
-                continue  # a disabled file never renames or propagates
+                continue  # a disabled file is never a checkable target
             data = load_yaml(content)
         except Exception:
             continue  # unreadable/unparsable files are reported later
         if not isinstance(data, CommentedMap):
             continue
 
-        # Throwaway context: warnings are emitted again (and surfaced)
-        # when the file itself is formatted. Directive-frozen inputs must be
-        # excluded here too so callers are not rewritten out of sync.
+        # Throwaway context only used to detect the file type, directives,
+        # and the renames the definition itself will receive.
         context = Context(str(file_path), config)
         mark_disabled_nodes(data, disabled_lines, context)
-        renames = plan_input_renames(data, context)
-        if renames:
-            plan.input_renames[file_path.resolve()] = renames
+        declared = callable_input_names(data, context)
+        if declared is None:
+            continue  # not callable; its callers cannot be input-checked
+        # Store canonical (post-rename) names so they match callers once the
+        # definition's own inputs have been formatted. An empty set is
+        # recorded too: passing inputs to a zero-input target is an error.
+        renames = plan_input_renames(data, context) if naming_on else {}
+        plan.input_names[file_path.resolve()] = {
+            renames.get(name, name) for name in declared
+        }
 
     return plan
 

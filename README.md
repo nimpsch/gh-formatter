@@ -15,14 +15,17 @@ A powerful and customizable formatting tool for GitHub Actions and Workflows. Au
   - List style standardization
   - List indentation
   - Quote style normalization (single/double)
+  - Alphabetical sorting of env/inputs/outputs/secrets/with blocks
   - Name capitalization
   - Job naming conventions
   - Input naming conventions
+  - `if:` expression normalization (wraps bare conditions in `${{ }}`)
   - Custom style rules
 - **Multiple Modes**:
   - `format`: Format files in-place
   - `--check`: Dry-run mode to verify formatting without making changes
   - `--diff`: Show unified diff of what would be changed
+- **Caller Input Checking**: Errors (or auto-fixes) when a `uses: ./...` caller passes an input the local target doesn't declare
 - **Custom Configuration**: Support for custom configuration files to enforce your team's style guide
 - **Inline Disable Directives**: Exempt a whole file, a region, or a single line with `# gh-formatter:disable[-file|-line]` / `:enable`
 - **Recursive Discovery**: Automatically finds all workflow and action files in your project
@@ -190,6 +193,9 @@ quote_style: double
 # false (default), true (auto-discover .yamllint*), or an explicit path.
 defer_to_yamllint: false
 
+# Mapping blocks sorted alphabetically (case-insensitive); [] disables.
+alphabetize: [env, inputs, outputs, secrets, with]
+
 # Trigger filter lists under `on:` (branches, tags, paths, ...)
 list_style: block    # "block" (- a) or "flow" ([a, b])
 list_keys:           # which keys under `on:` are treated as filter lists
@@ -213,8 +219,8 @@ key_order_job: [name, if, needs, runs-on, uses, with, secrets, permissions,
                 environment, concurrency, strategy, container, services,
                 outputs, env, defaults, timeout-minutes, continue-on-error,
                 steps]
-key_order_step: [name, id, uses, run, with, env, timeout-minutes,
-                 continue-on-error, if, shell, working-directory]
+key_order_step: [name, if, id, uses, run, with, env, working-directory,
+                 shell, timeout-minutes, continue-on-error]
 
 # Disable individual rules by id (see `gh-formatter --list-rules`)
 rules: {}
@@ -239,36 +245,68 @@ Invalid option names or values are rejected with a clear error message
 - Original line endings (LF/CRLF) and an explicit `---` document start
   marker are preserved.
 
-### Cross-file rename propagation
+### Cross-file input consistency
 
 Renaming the inputs of a *reusable workflow* (`workflow_call`) or a local
-action changes its public interface. When both the definition and its
-callers are part of the same run, gh-formatter updates the callers'
-`with:` keys automatically for local references (`uses: ./...`):
+action changes its public interface, so callers referencing it via
+`uses: ./...` can fall out of sync. gh-formatter checks each caller's `with:`
+keys against the local target's declared inputs and, by default, **errors**
+on a mismatch so you fix both files (see
+[Caller input checking](#caller-input-checking) for the `error` / `fix` /
+`ignore` modes).
+
+With `caller_inputs: fix`, gh-formatter instead renames the caller's keys to
+match — when you run it on the repository root (`gh-formatter .`) so the
+definition and its callers are formatted together:
 
 ```yaml
 jobs:
   call_template:
     uses: ./.github/workflows/template.yml
     with:
-      commit-sha: abc123   # renamed together with the template's input
+      commit-sha: abc123   # fixed to match the template's input
 ```
 
-Two rules apply:
+Either way, only `uses: ./...` references whose target is part of the same
+run are considered — marketplace actions (`actions/checkout@v4`) are never
+touched.
 
-- Only `uses: ./...` references (same repository) are followed —
-  marketplace actions (`actions/checkout@v4`) are never touched.
-- A caller is only updated when its target file is part of the same run.
-  Run gh-formatter on the repository root (`gh-formatter .`) so
-  definitions and callers are always formatted together; formatting a
-  lone template file renames its inputs without updating callers.
-
-To opt out of input renaming entirely:
+To turn off input renaming of definitions entirely:
 
 ```yaml
 rules:
   input-naming: false
 ```
+
+### Caller input checking
+
+When a caller passes a `with:` key that the local target does not declare —
+typically a casing or rename that drifted between the two files — gh-formatter
+acts according to the `caller_inputs` option. Only local references
+(`uses: ./...`) whose target is part of the same run are considered;
+marketplace actions (`actions/checkout@v4`) are never checked.
+
+```yaml
+# .gh-formatter.yml
+caller_inputs: error   # error (default) | fix | ignore
+```
+
+| Mode | Behavior |
+|------|----------|
+| `error` (default) | Report the mismatch as an **error** and fail the run, like a linter. You fix it in both files. |
+| `fix` | Rename the caller's key to the matching declared input (at your own risk). |
+| `ignore` | Leave caller inputs alone. |
+
+In `error` mode the message points at the offending key and the likely fix:
+
+```text
+[error] caller.yml - with: input 'commitSha' is not declared by local target
+        './.github/workflows/template.yml' (did you mean 'commit-sha'?) - fix it in both files
+```
+
+Errors fail the run (non-zero exit) so CI catches the drift; run
+`gh-formatter --check .` in CI. Use `fix` to let gh-formatter rename caller
+keys for you, or `ignore` to turn the check off.
 
 ## Using with yamllint
 
@@ -396,6 +434,7 @@ gh-formatter/
 │       ├── utils.py         # ruamel round-trip + shared tree traversal
 │       ├── yamllint_sync.py # Derive indentation from a yamllint config
 │       └── rules/           # Tree formatting rules
+│           ├── alphabetize.py  # Alphabetical block sorting rule
 │           ├── base.py      # Base rule class
 │           ├── inputs.py    # Input naming rule
 │           ├── callers.py   # Cross-file caller input renaming rule
