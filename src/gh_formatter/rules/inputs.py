@@ -64,6 +64,24 @@ def callable_input_names(
     return set(inputs_map.keys()) if inputs_map is not None else set()
 
 
+def callable_secret_names(
+    data: CommentedMap, context: Context
+) -> set[str] | None:
+    """Secret names a `uses:` caller may pass to this reusable workflow.
+
+    Actions cannot receive secrets, so None is returned for them (and for
+    workflows without a `workflow_call` trigger); an empty set means the
+    workflow is callable but declares no secrets.
+    """
+    if context.file_type == "action":
+        return None
+    call = get_map(get_map(data, "on"), "workflow_call")
+    if call is None:
+        return None
+    secrets_map = get_map(call, "secrets")
+    return set(secrets_map.keys()) if secrets_map is not None else set()
+
+
 def plan_input_renames(data: CommentedMap, context: Context) -> dict[str, str]:
     """Computes the input renames this file would receive, without applying.
 

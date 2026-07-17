@@ -47,6 +47,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     #   "fix":             rename the caller's keys to match (at own risk)
     #   "ignore":          leave caller inputs alone
     "caller_inputs": "error",
+    # Require callers to pass every input/secret a LOCAL target declares,
+    # even optional ones with defaults, so the call site is self-documenting.
+    # `secrets: inherit` satisfies the secrets side. Only active while
+    # caller_inputs is not "ignore".
+    "require_explicit_inputs": True,
     # "flow" ([a, b]) or "block" (- a\n- b)
     "list_style": "block",
     # Mapping blocks whose entries are sorted alphabetically (their order
@@ -90,13 +95,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "needs",
         "runs-on",
         "env",
+        # strategy before the call payload (uses/with) it parameterizes
+        "strategy",
         "uses",
         "with",
         "secrets",
         "permissions",
         "environment",
         "concurrency",
-        "strategy",
         "container",
         "services",
         "outputs",
@@ -111,12 +117,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "if",
         "env",
         "uses",
-        "run",
-        "with",
+        "continue-on-error",
         "working-directory",
         "shell",
         "timeout-minutes",
-        "continue-on-error",
+        # The step body (script or action arguments) always comes last.
+        "run",
+        "with",
     ],
     # Per-rule toggles, e.g. {"capitalize-names": false}
     "rules": {},
@@ -176,6 +183,9 @@ class Config:
         )
         self.caller_inputs = _require_choice(
             merged, "caller_inputs", VALID_CALLER_INPUTS
+        )
+        self.require_explicit_inputs = _require_bool(
+            merged, "require_explicit_inputs"
         )
         self.list_style = _require_choice(
             merged, "list_style", VALID_LIST_STYLES

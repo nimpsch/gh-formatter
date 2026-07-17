@@ -1,4 +1,4 @@
-"""Rule: trim trailing whitespace in scripts and normalize booleans."""
+"""Rule: clean whitespace in script blocks and normalize booleans."""
 
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString, PreservedScalarString
@@ -24,7 +24,7 @@ class StyleRule(BaseRule):
     @property
     def description(self) -> str:
         return (
-            "Trim trailing whitespace in scripts and normalize simple booleans"
+            "Trim whitespace and leading blanks in scripts, normalize booleans"
         )
 
     def should_run(self, context: Context) -> bool:
@@ -37,7 +37,7 @@ class StyleRule(BaseRule):
                 if normalized is not None:
                     container[key] = normalized
             elif isinstance(value, _BLOCK_SCALAR_TYPES):
-                container[key] = _trim_trailing_whitespace(value)
+                container[key] = _clean_block_scalar(value)
 
 
 def _normalize_boolean(value: str) -> bool | None:
@@ -49,9 +49,20 @@ def _normalize_boolean(value: str) -> bool | None:
     return None
 
 
-def _trim_trailing_whitespace(value: str) -> str:
-    """Trims line-trailing whitespace, keeping the original final newline."""
-    trimmed = "\n".join(line.rstrip() for line in value.splitlines())
+def _clean_block_scalar(value: str) -> str:
+    """Trims trailing whitespace per line and drops leading blank lines.
+
+    A leading blank line is meaningless in a script but forces the YAML
+    emitter to write an explicit indentation indicator (``run: |2``), so it
+    is removed. The original final newline is kept.
+    """
+    lines = value.splitlines()
+    start = 0
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    if start == len(lines):
+        return value  # nothing but blank lines: leave untouched
+    trimmed = "\n".join(line.rstrip() for line in lines[start:])
     if value.endswith("\n"):
         trimmed += "\n"
     return type(value)(trimmed)

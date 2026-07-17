@@ -43,7 +43,6 @@ on:
           - info
           - debug
           - warn
-
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
   group: "ci-${{ github.ref }}"
@@ -127,9 +126,9 @@ jobs:
         env:
           # Points at the postgres service defined above.
           DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test"
-        run: pytest -v
         working-directory: .
         shell: bash
+        run: pytest -v
 
       # Only one OS needs to publish coverage; failures here shouldn't fail CI.
       - name: Upload coverage

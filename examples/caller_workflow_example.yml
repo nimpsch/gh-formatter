@@ -27,21 +27,21 @@ jobs:
   call_deploy:
     name: Call reusable deploy
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/reusable_workflow_example.yml
-    with:
-      dry-run: "${{ github.event.inputs.dry-run }}"
-      image-tag: "${{ github.sha }}"  # deploy exactly this commit
-      target-env: "${{ github.event.inputs.deploy-env }}-${{ matrix.region }}"
-    secrets:
-      # Forward the org secret to the reusable workflow.
-      deploy-token: "${{ secrets.DEPLOY_TOKEN }}"
-
     strategy:
       fail-fast: false
       matrix:
         region:
           - eu
           - us
+    uses: ./.github/workflows/reusable_workflow_example.yml
+    with:
+      dry-run: "${{ github.event.inputs.dry-run }}"
+      image-tag: "${{ github.sha }}"  # deploy exactly this commit
+      target-env: "${{ github.event.inputs.deploy-env }}-${{ matrix.region }}"
+      timeout-minutes: 15  # explicit even though the template has a default
+    secrets:
+      # Forward the org secret to the reusable workflow.
+      deploy-token: "${{ secrets.DEPLOY_TOKEN }}"
 
   # Always report, even if a region's deploy failed.
   notify:
@@ -51,5 +51,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Report status
-        run: echo "Deploy finished with status ${{ needs.call_deploy.result }}"
         shell: bash
+        run: echo "Deploy finished with status ${{ needs.call_deploy.result }}"

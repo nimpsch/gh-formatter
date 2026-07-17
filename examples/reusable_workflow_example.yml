@@ -52,16 +52,17 @@ jobs:
       # Fail fast on bad input rather than deploying to the wrong place.
       - name: Validate inputs
         if: ${{ inputs.target-env == '' }}  # guard against empty env
+        shell: bash
         run: |
           echo "target-env must not be empty" >&2
           exit 1
-        shell: bash
 
       - name: Publish
         id: publish
         env:
           DEPLOY_TOKEN: "${{ secrets.deploy-token }}"
           IMAGE_TAG: "${{ inputs.image-tag }}"
+        shell: bash
         run: |
           if [ "${{ inputs.dry-run }}" = "true" ]; then
             echo "Dry run: would deploy ${IMAGE_TAG} to ${{ inputs.target-env }}"
@@ -69,4 +70,3 @@ jobs:
             echo "Deploying ${IMAGE_TAG} to ${{ inputs.target-env }}"
           fi
           echo "url=https://${{ inputs.target-env }}.example.com" >> "$GITHUB_OUTPUT"
-        shell: bash

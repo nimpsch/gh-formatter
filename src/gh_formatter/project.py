@@ -17,7 +17,11 @@ from ruamel.yaml.comments import CommentedMap
 from gh_formatter.config import Config
 from gh_formatter.context import Context
 from gh_formatter.directives import mark_disabled_nodes, scan_disabled
-from gh_formatter.rules.inputs import callable_input_names, plan_input_renames
+from gh_formatter.rules.inputs import (
+    callable_input_names,
+    callable_secret_names,
+    plan_input_renames,
+)
 from gh_formatter.utils import load_yaml
 
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
@@ -25,12 +29,13 @@ WORKFLOW_SUFFIXES = (".yml", ".yaml")
 
 @dataclass
 class ProjectPlan:
-    """Each local target's canonical (post-format) declared input names.
+    """Each local target's canonical declared input and secret names.
 
     Callers are checked/fixed against these names; see CallerInputRule.
     """
 
     input_names: dict[Path, set[str]] = field(default_factory=dict)
+    secret_names: dict[Path, set[str]] = field(default_factory=dict)
 
     def input_names_for(self, candidates: list[Path]) -> set[str] | None:
         """Declared input names of the first known candidate, else None.
@@ -38,9 +43,19 @@ class ProjectPlan:
         None means no candidate is a local target in this run, so the caller
         cannot be checked.
         """
+        return self._first_match(self.input_names, candidates)
+
+    def secret_names_for(self, candidates: list[Path]) -> set[str] | None:
+        """Declared secret names of the first known candidate, else None."""
+        return self._first_match(self.secret_names, candidates)
+
+    @staticmethod
+    def _first_match(
+        table: dict[Path, set[str]], candidates: list[Path]
+    ) -> set[str] | None:
         for candidate in candidates:
-            if candidate in self.input_names:
-                return self.input_names[candidate]
+            if candidate in table:
+                return table[candidate]
         return None
 
 
@@ -74,9 +89,13 @@ def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:
         # definition's own inputs have been formatted. An empty set is
         # recorded too: passing inputs to a zero-input target is an error.
         renames = plan_input_renames(data, context) if naming_on else {}
-        plan.input_names[file_path.resolve()] = {
+        resolved = file_path.resolve()
+        plan.input_names[resolved] = {
             renames.get(name, name) for name in declared
         }
+        secrets = callable_secret_names(data, context)
+        if secrets is not None:
+            plan.secret_names[resolved] = secrets
 
     return plan
 

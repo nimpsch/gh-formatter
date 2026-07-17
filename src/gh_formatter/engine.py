@@ -93,11 +93,12 @@ class Engine:
             sequence_offset=config.sequence_offset,
         )
 
-        # ruamel does not round-trip an explicit document start marker
-        if content.lstrip().startswith("---") and not formatted.startswith(
-            "---"
-        ):
-            formatted = "---\n" + formatted
+        # ruamel does not round-trip an explicit document start marker, and
+        # drops any header comments that precede it (they belong to the
+        # document prelude, not the root mapping).
+        prelude = _document_prelude(content)
+        if prelude and not formatted.startswith(prelude):
+            formatted = prelude + formatted
 
         for processor in self.postprocessors:
             if config.rule_enabled(processor.id) and processor.should_run(
@@ -106,3 +107,23 @@ class Engine:
                 formatted = processor.apply(formatted, context)
 
         return formatted
+
+
+def _document_prelude(content: str) -> str:
+    """The header comments and `---` marker preceding the document, if any.
+
+    Comments above an explicit document-start marker belong to the document
+    prelude rather than the root mapping, so ruamel drops them (along with
+    the marker itself) when dumping. The verbatim prelude text is captured
+    here and re-prepended to the formatted output.
+    """
+    prelude_length = 0
+    for line in content.splitlines(keepends=True):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            prelude_length += len(line)
+            continue
+        if stripped.startswith("---"):
+            return content[: prelude_length + len(line)]
+        return ""  # first content line is not a marker: no prelude
+    return ""

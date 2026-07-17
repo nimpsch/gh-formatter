@@ -463,3 +463,154 @@ jobs:
 
 def _context():
     return Context(".github/workflows/ci.yml", Config())
+
+
+def test_step_reorder_keeps_trailing_job_comment_outside_step(engine):
+    """Reordering step keys past a map-valued last key must not drag the
+    next job's comment into the step (it hangs off the with: block)."""
+    workflow = """name: ci
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: upload
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # deploy comes after tests
+  deploy:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(engine, workflow)
+    # The comment stays above the deploy job, not inside the upload step.
+    assert "# deploy comes after tests\n  deploy:" in formatted
+    # continue-on-error was reordered within the step, above the comment.
+    assert formatted.index("continue-on-error: true") < formatted.index(
+        "# deploy comes after tests"
+    )
+    assert engine.format_string(formatted, _context()) == formatted
+
+
+def test_leading_blank_in_run_block_stripped(engine):
+    """A blank line after `run: |` forces an ugly `|2` indentation
+    indicator on re-dump; the meaningless blank is stripped instead."""
+    action = """name: X
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+
+        GH_HOST="example.com"
+        export GH_HOST
+"""
+    formatted, _ = fmt(engine, action, path="action.yml")
+    assert "run: |\n" in formatted
+    assert "|2" not in formatted
+    assert 'GH_HOST="example.com"' in formatted
+
+
+def test_required_block_indicator_preserved(engine):
+    """A deliberate `|2` (first content line starts with spaces) survives
+    with the content byte-identical."""
+    from gh_formatter.utils import load_yaml
+
+    action = """name: X
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |2
+          indented first line
+        normal line
+"""
+    formatted, _ = fmt(engine, action, path="action.yml")
+    script = load_yaml(formatted)["runs"]["steps"][0]["run"]
+    assert script == "  indented first line\nnormal line\n"
+
+
+def test_job_reorder_keeps_comment_after_seq_tailed_entry(engine):
+    """A comment for the NEXT job hangs on the previous job's deepest last
+    child; when that chain ends in a sequence (strategy.matrix.region),
+    the comment must still stay outside the job after reordering."""
+    workflow = """name: ci
+jobs:
+  call_deploy:
+    uses: ./x.yml
+    with:
+      env-name: prod
+    strategy:
+      matrix:
+        region:
+          - eu
+          - us
+
+  # always report, even on failure
+  notify:
+    runs-on: ubuntu-latest
+"""
+    config = Config({"caller_inputs": "ignore"})
+    formatted, _ = fmt(engine, workflow, config=config)
+    assert "# always report, even on failure\n  notify:" in formatted
+    # strategy was reordered above uses without dragging the comment along
+    assert formatted.index("strategy:") < formatted.index("uses: ./x.yml")
+    context = Context(".github/workflows/ci.yml", config)
+    assert engine.format_string(formatted, context) == formatted
+
+
+def test_blank_after_block_scalar_stays_single(engine):
+    """Reordering a step so a `run: |` block becomes last must not double
+    the blank line separating it from the next step."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: one
+        run: |
+          echo hi
+        shell: bash
+
+      - name: two
+        shell: bash
+        run: |
+          echo bye
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "\n\n\n" not in formatted
+    assert "echo hi\n\n" in formatted  # exactly one blank between steps
+    context = Context(".github/workflows/ci.yml", Config())
+    assert engine.format_string(formatted, context) == formatted
+
+
+def test_header_comments_before_document_marker_preserved(engine):
+    """Comments above `---` belong to the document prelude, which ruamel
+    drops on dump; the formatter must carry them (and the marker) over."""
+    workflow = """# Test
+# Test2
+---
+name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert formatted.startswith("# Test\n# Test2\n---\n")
+    context = Context(".github/workflows/ci.yml", Config())
+    assert engine.format_string(formatted, context) == formatted
+
+
+def test_header_comments_without_marker_preserved(engine):
+    """Without a marker the header rides the root mapping and survives."""
+    workflow = """# Test
+# Test2
+name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert formatted.startswith("# Test\n# Test2\nname: Ci")

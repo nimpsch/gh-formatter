@@ -355,3 +355,69 @@ jobs:
     context = Context(".github/workflows/ci.yml", Config({"alphabetize": []}))
     formatted = engine.format_string(workflow, context)
     assert formatted.index("ZED:") < formatted.index("ALPHA:")
+
+
+def test_nested_quotes_use_opposite_char(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NESTED: "he said \\"hi\\""
+      APOSTROPHE: 'it''s fine'
+      BOTH: "mix \\"double\\" and 'single'"
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    # Double quotes inside -> wrapped in single quotes, no escaping.
+    assert "NESTED: 'he said \"hi\"'" in formatted
+    # Apostrophe inside -> double quotes.
+    assert 'APOSTROPHE: "it\'s fine"' in formatted
+    # Both kinds present -> configured style wins (escaping unavoidable).
+    assert 'BOTH: "mix \\"double\\" and \'single\'"' in formatted
+
+
+def test_run_and_with_are_last_in_step(engine):
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+        shell: bash
+        working-directory: .
+        name: script step
+      - with:
+          ref: main
+        uses: actions/checkout@v4
+        name: action step
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert formatted.index("shell: bash") < formatted.index("run: echo hi")
+    assert formatted.index("working-directory:") < formatted.index(
+        "run: echo hi"
+    )
+    assert formatted.index("uses: actions/checkout@v4") < formatted.index(
+        "ref: main"
+    )
+
+
+def test_strategy_before_uses_in_job(engine):
+    workflow = """name: ci
+jobs:
+  fan_out:
+    uses: ./x.yml
+    with:
+      env-name: prod
+    strategy:
+      matrix:
+        region: [eu, us]
+"""
+    context = Context(
+        ".github/workflows/ci.yml", Config({"caller_inputs": "ignore"})
+    )
+    formatted = engine.format_string(workflow, context)
+    assert formatted.index("strategy:") < formatted.index("uses: ./x.yml")
