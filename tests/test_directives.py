@@ -137,3 +137,32 @@ jobs:
 """
     once = fmt(engine, workflow)
     assert fmt(engine, once) == once
+
+
+def test_directive_lookalike_inside_script_ignored(engine):
+    """A directive-shaped string in script content (e.g. inside quotes)
+    must not disable formatting -- only real comments count."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: gen
+        run: |
+          echo "# gh-formatter:disable"
+      - name: renameMe
+        run: echo hi
+"""
+    formatted = fmt(engine, workflow)
+    # The step after the lookalike is still formatted normally.
+    assert "name: RenameMe" in formatted
+    # The script line itself is untouched content.
+    assert 'echo "# gh-formatter:disable"' in formatted
+
+
+def test_scan_ignores_quoted_directive():
+    disable_file, lines = scan_disabled(
+        'run: echo "# gh-formatter:disable-file"\nname: ci\n'
+    )
+    assert disable_file is False
+    assert lines == set()
