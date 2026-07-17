@@ -3,8 +3,8 @@
 import pytest
 
 from gh_formatter.config import Config
-from gh_formatter.context import Context
-from gh_formatter.engine import Engine
+from gh_formatter.core.context import Context
+from gh_formatter.core.pipeline import Engine
 
 
 @pytest.fixture
@@ -207,7 +207,7 @@ runs:
 
 def test_write_failure_reported_as_error(tmp_path):
     """A file that cannot be written must be reported as an error."""
-    from gh_formatter.cli import FileStatus, process_file
+    from gh_formatter.app.service import FileStatus, process_file
 
     target = tmp_path / ".github" / "workflows"
     target.mkdir(parents=True)
@@ -309,7 +309,7 @@ jobs:
 
 
 def test_crlf_line_endings_preserved(tmp_path):
-    from gh_formatter.cli import FileStatus, process_file
+    from gh_formatter.app.service import FileStatus, process_file
 
     target = tmp_path / ".github" / "workflows"
     target.mkdir(parents=True)
@@ -337,7 +337,7 @@ def test_crlf_line_endings_preserved(tmp_path):
 
 
 def test_line_endings_lf_option_converts_crlf(tmp_path):
-    from gh_formatter.cli import FileStatus, process_file
+    from gh_formatter.app.service import FileStatus, process_file
 
     target = tmp_path / ".github" / "workflows"
     target.mkdir(parents=True)
@@ -401,7 +401,7 @@ jobs:
 
 
 def _reparses(text):
-    from gh_formatter.utils import load_yaml
+    from gh_formatter.core.yaml_io import load_yaml
 
     load_yaml(text)  # raises on invalid YAML
     return True
@@ -516,7 +516,7 @@ runs:
 def test_required_block_indicator_preserved(engine):
     """A deliberate `|2` (first content line starts with spaces) survives
     with the content byte-identical."""
-    from gh_formatter.utils import load_yaml
+    from gh_formatter.core.yaml_io import load_yaml
 
     action = """name: X
 runs:

@@ -3,9 +3,9 @@
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString, PreservedScalarString
 
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import iter_tree_slots
+from gh_formatter.core.context import Context
+from gh_formatter.core.rules.base import BaseRule
+from gh_formatter.core.tree import iter_tree_slots
 
 _BLOCK_SCALAR_TYPES = (LiteralScalarString, PreservedScalarString)
 

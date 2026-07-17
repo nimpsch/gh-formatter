@@ -4,13 +4,13 @@ from typing import Any
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh_formatter.comments import (
+from gh_formatter.core.comments import (
     hoist_dedented_comments,
     reorder_commented_map,
 )
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import iter_tree_slots
+from gh_formatter.core.context import Context
+from gh_formatter.core.rules.base import BaseRule
+from gh_formatter.core.tree import iter_tree_slots
 
 
 class AlphabetizeRule(BaseRule):

@@ -2,9 +2,9 @@
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import get_map, get_seq, restyle_scalar
+from gh_formatter.core.context import Context
+from gh_formatter.core.rules.base import BaseRule
+from gh_formatter.core.tree import get_map, get_seq, restyle_scalar
 
 
 class CapitalizeNamesRule(BaseRule):

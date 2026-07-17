@@ -2,14 +2,14 @@
 
 import pytest
 
-from gh_formatter.cli import process_file
-from gh_formatter.config import Config
-from gh_formatter.engine import Engine
-from gh_formatter.project import (
+from gh_formatter.app.planning import (
     build_project_plan,
     find_repo_root,
     resolve_local_uses,
 )
+from gh_formatter.app.service import process_file
+from gh_formatter.config import Config
+from gh_formatter.core.pipeline import Engine
 
 
 @pytest.fixture

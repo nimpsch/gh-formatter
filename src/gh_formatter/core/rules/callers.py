@@ -18,23 +18,22 @@ Only local references (`uses: ./...`) whose target is part of the same run
 are considered; marketplace actions are never touched.
 """
 
+from __future__ import annotations
+
 from collections.abc import Iterator
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh_formatter.context import Context
-from gh_formatter.project import (
-    ProjectPlan,
-    find_repo_root,
-    resolve_local_uses,
-)
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import get_map, get_seq, rename_commented_map_keys
+from gh_formatter.core.context import Context
+from gh_formatter.core.rules.base import BaseRule
+from gh_formatter.core.tree import get_map, get_seq, rename_commented_map_keys
 
-# A local caller: its mapping, the `uses:` value, and the candidate target
-# files the `uses:` resolves to.
-Caller = tuple[CommentedMap, str, list[Path]]
+if TYPE_CHECKING:
+    from gh_formatter.app.planning import CallerInterface
+
+# A caller mapping (job or step) together with its `uses:` value.
+Caller = tuple[CommentedMap, str]
 
 
 class CallerInputRule(BaseRule):
@@ -58,73 +57,71 @@ class CallerInputRule(BaseRule):
 
     def apply(self, data: CommentedMap, context: Context) -> None:
         plan = context.project_plan
-        repo_root = find_repo_root(context.file_path)
-        if plan is None or repo_root is None:
+        if plan is None:
             return
 
-        for caller, uses, candidates in iter_local_callers(data, repo_root):
-            _check_inputs(caller, uses, candidates, plan, context)
-            _check_secrets(caller, uses, candidates, plan, context)
+        for caller, uses in iter_local_callers(data):
+            interface = plan.interface_for(uses, context.file_path)
+            if interface is None:
+                continue  # not a local target in this run: cannot check
+            _check_inputs(caller, uses, interface, context)
+            _check_secrets(caller, uses, interface, context)
 
 
-def iter_local_callers(data: CommentedMap, repo_root: Path) -> Iterator[Caller]:
+def iter_local_callers(data: CommentedMap) -> Iterator[Caller]:
     """Yields every mapping with a `uses:` reference (jobs and steps)."""
     jobs = get_map(data, "jobs")
     if jobs is not None:
         for job in jobs.values():
             if isinstance(job, CommentedMap):
-                yield from _caller(job, repo_root)
-                yield from _step_callers(job, repo_root)
+                yield from _caller(job)
+                yield from _step_callers(job)
 
     # Composite actions call local actions from runs.steps.
     runs = get_map(data, "runs")
     if runs is not None:
-        yield from _step_callers(runs, repo_root)
+        yield from _step_callers(runs)
 
 
-def _step_callers(container: CommentedMap, repo_root: Path) -> Iterator[Caller]:
+def _step_callers(container: CommentedMap) -> Iterator[Caller]:
     steps = get_seq(container, "steps")
     if steps is None:
         return
     for step in steps:
         if isinstance(step, CommentedMap):
-            yield from _caller(step, repo_root)
+            yield from _caller(step)
 
 
-def _caller(mapping: CommentedMap, repo_root: Path) -> Iterator[Caller]:
+def _caller(mapping: CommentedMap) -> Iterator[Caller]:
     uses = mapping.get("uses")
     if isinstance(uses, str):
-        yield mapping, uses, resolve_local_uses(uses, repo_root)
+        yield mapping, uses
 
 
 def _check_inputs(
     caller: CommentedMap,
     uses: str,
-    candidates: list[Path],
-    plan: ProjectPlan,
+    interface: CallerInterface,
     context: Context,
 ) -> None:
-    declared = plan.input_names_for(candidates)
-    if declared is None:
-        return  # not a local target in this run: cannot check
+    if interface.inputs is None:
+        return  # this target's inputs cannot be checked
     with_map = get_map(caller, "with")
-    _check_block(with_map, declared, uses, "with", context)
+    _check_block(with_map, interface.inputs, uses, "with", context)
 
 
 def _check_secrets(
     caller: CommentedMap,
     uses: str,
-    candidates: list[Path],
-    plan: ProjectPlan,
+    interface: CallerInterface,
     context: Context,
 ) -> None:
-    declared = plan.secret_names_for(candidates)
-    if declared is None:
+    if interface.secrets is None:
         return  # not a local reusable workflow: no secrets to check
     if isinstance(caller.get("secrets"), str):
         return  # `secrets: inherit` forwards everything
     secrets_map = get_map(caller, "secrets")
-    _check_block(secrets_map, declared, uses, "secrets", context)
+    _check_block(secrets_map, interface.secrets, uses, "secrets", context)
 
 
 def _check_block(

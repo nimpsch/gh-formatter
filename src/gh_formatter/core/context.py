@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from gh_formatter.config import Config
+from gh_formatter.core.diagnostics import Diagnostic, Severity
 
 if TYPE_CHECKING:
-    from gh_formatter.project import ProjectPlan
+    from gh_formatter.app.planning import ProjectPlan
 
 FileType = Literal["workflow", "action"]
 
@@ -25,10 +26,8 @@ class Context:
         self.file_path = file_path
         self.config = config
         self.file_type: FileType = self._detect_file_type()
-        self.warnings: list[str] = []
-        # Hard lint errors (e.g. a caller input mismatch under the "error"
-        # policy); the CLI fails the run when any are present.
-        self.errors: list[str] = []
+        # Structured findings collected while formatting this file.
+        self.diagnostics: list[Diagnostic] = []
         # Set by the CLI for cross-file rename propagation; None when
         # formatting a file in isolation.
         self.project_plan: ProjectPlan | None = None
@@ -40,11 +39,27 @@ class Context:
 
     def add_warning(self, message: str) -> None:
         """Records a warning to be surfaced to the user."""
-        self.warnings.append(message)
+        self.diagnostics.append(Diagnostic(Severity.WARNING, message))
 
     def add_error(self, message: str) -> None:
         """Records a lint error that must be fixed (fails the run)."""
-        self.errors.append(message)
+        self.diagnostics.append(Diagnostic(Severity.ERROR, message))
+
+    @property
+    def warnings(self) -> list[str]:
+        """Warning messages, in the order they were recorded."""
+        return [
+            d.message
+            for d in self.diagnostics
+            if d.severity is Severity.WARNING
+        ]
+
+    @property
+    def errors(self) -> list[str]:
+        """Error messages, in the order they were recorded."""
+        return [
+            d.message for d in self.diagnostics if d.severity is Severity.ERROR
+        ]
 
     def freeze_key(self, mapping: object, key: str) -> None:
         """Marks a key as exempt from renaming, reordering, and reformatting."""
