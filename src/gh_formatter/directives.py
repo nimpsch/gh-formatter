@@ -39,7 +39,7 @@ def scan_disabled(content: str) -> tuple[bool, set[int]]:
 
     lines = content.split("\n")
     for number, line in enumerate(lines, start=1):
-        match = _DIRECTIVE_RE.search(line)
+        match = _match_directive(line)
         directive = match.group(1) if match else None
 
         if directive == "enable":
@@ -64,6 +64,24 @@ def scan_disabled(content: str) -> tuple[bool, set[int]]:
                     disabled.add(target)
 
     return disable_file, disabled
+
+
+def _match_directive(line: str) -> re.Match[str] | None:
+    """Matches a directive comment, ignoring directive-shaped strings.
+
+    A real YAML comment's ``#`` sits at the start of the line or after
+    whitespace. A match preceded by any other character (for example the
+    quote in ``echo "# gh-formatter:disable"`` inside a run block) is
+    script content, not a directive. A directive on its own line inside a
+    script (e.g. a bash comment) is still indistinguishable by text scan
+    and remains a known limitation.
+    """
+    match = _DIRECTIVE_RE.search(line)
+    if match is None:
+        return None
+    if match.start() > 0 and line[match.start() - 1] not in " \t":
+        return None
+    return match
 
 
 def _next_content_line(lines: list[str], after: int) -> int | None:

@@ -519,3 +519,39 @@ jobs:
         repo, "caller.yml", Config({"require_explicit_inputs": False})
     )
     assert errors == []
+
+
+def test_drifted_key_reported_once_not_twice(repo):
+    """A casing-drifted key yields one mismatch error with a suggestion --
+    not an additional 'not passed explicitly' error for the same input."""
+    template = repo / ".github" / "workflows" / "template.yml"
+    template.write_text(
+        """name: Template
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        type: string
+jobs:
+  run:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commitSha: abc123
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert (
+        len([e for e in errors if "commit-sha" in e or "commitSha" in e]) == 1
+    )
+    assert any("did you mean 'commit-sha'" in e for e in errors)

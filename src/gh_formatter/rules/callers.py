@@ -135,14 +135,17 @@ def _check_block(
     context: Context,
 ) -> None:
     """Runs the mismatch and completeness checks on one caller block."""
+    suggested: set[str] = set()
     if block is not None:
         if context.config.caller_inputs == "fix":
             _fix_keys(block, declared, uses, label, context)
         else:
-            _report_keys(block, declared, uses, label, context)
+            suggested = _report_keys(block, declared, uses, label, context)
     if context.config.require_explicit_inputs:
         passed = set(block.keys()) if block is not None else set()
-        for name in sorted(declared - passed):
+        # A declared name already suggested as the fix for a mismatched key
+        # is covered by that error; reporting it as missing too is noise.
+        for name in sorted(declared - passed - suggested):
             context.add_error(
                 f"{label}: '{name}' declared by local target '{uses}' is "
                 f"not passed explicitly - pass it even if a default exists"
@@ -190,17 +193,25 @@ def _report_keys(
     uses: str,
     label: str,
     context: Context,
-) -> None:
-    """Reports each caller key that is not a declared name as an error."""
+) -> set[str]:
+    """Reports each caller key that is not a declared name as an error.
+
+    Returns the declared names suggested as close matches, so the caller
+    can skip redundant missing-name reports for them.
+    """
+    suggested: set[str] = set()
     for key in block:
         if key in declared:
             continue
         match = _closest_name(key, declared)
+        if match is not None:
+            suggested.add(match)
         hint = f" (did you mean '{match}'?)" if match else ""
         context.add_error(
             f"{label}: input '{key}' is not declared by local target "
             f"'{uses}'{hint} - fix it in both files"
         )
+    return suggested
 
 
 def _closest_name(key: str, declared: set[str]) -> str | None:
