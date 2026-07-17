@@ -67,8 +67,10 @@ line_endings: "preserve"
 #   double:   normalize every quoted scalar to "..."  (default)
 #   single:   normalize every quoted scalar to '...'
 #   preserve: leave each scalar's existing quoting untouched
-# Plain (unquoted) values are never force-quoted, and ruamel falls back
-# to double quoting when a value cannot be single-quoted safely.
+# Plain (unquoted) values are never force-quoted. A value containing the
+# configured quote character is wrapped in the opposite one instead of
+# escaping ('say "hi"' rather than "say \"hi\""), and ruamel falls back to
+# double quoting when a value cannot be single-quoted safely.
 quote_style: "double"
 
 
@@ -96,6 +98,12 @@ defer_to_yamllint: false
 #   "fix":             rename the caller's keys to match (at your own risk)
 #   "ignore":          leave caller inputs alone
 caller_inputs: "error"
+
+# Require callers to pass every input/secret a LOCAL target declares, even
+# optional ones with defaults, so the call site documents the full
+# interface. `secrets: inherit` satisfies the secrets side. Only active
+# while caller_inputs is not "ignore". (default: true)
+require_explicit_inputs: true
 
 
 # ALPHABETICAL SORTING
@@ -198,13 +206,13 @@ key_order_job:
   - needs
   - runs-on
   - env
+  - strategy  # before the call payload (uses/with) it parameterizes
   - uses
   - with
   - secrets
   - permissions
   - environment
   - concurrency
-  - strategy
   - container
   - services
   - outputs
@@ -221,9 +229,9 @@ key_order_step:
   - if
   - env
   - uses
-  - continue-on-error
-  - run
-  - with
+  - continue-on-error  # failure policy next to the action reference
   - working-directory
   - shell
   - timeout-minutes
+  - run   # the step body (script or action arguments) always comes last
+  - with

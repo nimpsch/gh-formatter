@@ -416,3 +416,106 @@ jobs:
     )
     errors = _errors_for(repo, "caller.yml")
     assert errors == []
+
+
+def _write_deploy_template(repo):
+    (repo / ".github" / "workflows" / "template.yml").write_text(
+        """name: Template
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        type: string
+        required: true
+      dry-run:
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      deploy-token:
+        required: true
+jobs:
+  run:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+
+
+def test_missing_optional_input_is_reported(repo):
+    """Every declared input must be passed, defaults notwithstanding."""
+    _write_deploy_template(repo)
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commit-sha: abc123
+    secrets:
+      deploy-token: ${{ secrets.TOKEN }}
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert any("dry-run" in e and "not passed explicitly" in e for e in errors)
+
+
+def test_missing_secret_is_reported_and_inherit_accepted(repo):
+    _write_deploy_template(repo)
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commit-sha: abc123
+      dry-run: true
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert any(
+        "secrets: 'deploy-token'" in e and "not passed" in e for e in errors
+    )
+
+    # `secrets: inherit` forwards everything and satisfies the check.
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commit-sha: abc123
+      dry-run: true
+    secrets: inherit
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(repo, "caller.yml")
+    assert errors == []
+
+
+def test_explicit_inputs_check_can_be_disabled(repo):
+    _write_deploy_template(repo)
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commit-sha: abc123
+""",
+        encoding="utf-8",
+    )
+    errors = _errors_for(
+        repo, "caller.yml", Config({"require_explicit_inputs": False})
+    )
+    assert errors == []

@@ -1,12 +1,18 @@
-"""Rule: keep local `uses:` callers' with-keys consistent with their target.
+"""Rule: keep local `uses:` callers consistent with their target's interface.
 
 The behaviour is controlled by the ``caller_inputs`` config option:
 
-* ``error`` (default) -- a with-key that is not a declared input of the local
-  target is reported as an error, to be fixed by hand in both files.
-* ``fix`` -- the caller's keys are renamed to the matching declared input
-  (at the user's own risk).
+* ``error`` (default) -- a with-key or secrets-key that is not declared by
+  the local target is reported as an error, to be fixed by hand in both
+  files.
+* ``fix`` -- the caller's keys are renamed to the matching declared name
+  (at the user's own risk); keys with no recognizable match still error.
 * ``ignore`` -- caller inputs are left alone.
+
+With ``require_explicit_inputs`` (default on), callers must also pass every
+input and secret the target declares -- optional ones included -- so the
+call site documents the full interface. ``secrets: inherit`` satisfies the
+secrets side.
 
 Only local references (`uses: ./...`) whose target is part of the same run
 are considered; marketplace actions are never touched.
@@ -18,17 +24,21 @@ from pathlib import Path
 from ruamel.yaml.comments import CommentedMap
 
 from gh_formatter.context import Context
-from gh_formatter.project import find_repo_root, resolve_local_uses
+from gh_formatter.project import (
+    ProjectPlan,
+    find_repo_root,
+    resolve_local_uses,
+)
 from gh_formatter.rules.base import BaseRule
 from gh_formatter.utils import get_map, get_seq, rename_commented_map_keys
 
-# A local caller: its `uses:` value, its `with:` map, and the candidate
-# target files the `uses:` resolves to.
-Caller = tuple[str, CommentedMap, list[Path]]
+# A local caller: its mapping, the `uses:` value, and the candidate target
+# files the `uses:` resolves to.
+Caller = tuple[CommentedMap, str, list[Path]]
 
 
 class CallerInputRule(BaseRule):
-    """Validates or fixes local `uses:` with-keys per the caller_inputs mode."""
+    """Validates or fixes local `uses:` callers per the caller_inputs mode."""
 
     @property
     def id(self) -> str:
@@ -36,13 +46,13 @@ class CallerInputRule(BaseRule):
 
     @property
     def description(self) -> str:
-        return "Check/fix local uses: with-keys against the target's inputs"
+        return "Check/fix local uses: callers against the target's interface"
 
     def should_run(self, context: Context) -> bool:
         plan = context.project_plan
         return (
             plan is not None
-            and bool(plan.input_names)
+            and bool(plan.input_names or plan.secret_names)
             and context.config.caller_inputs != "ignore"
         )
 
@@ -52,34 +62,24 @@ class CallerInputRule(BaseRule):
         if plan is None or repo_root is None:
             return
 
-        fix = context.config.caller_inputs == "fix"
-        for uses, with_map, candidates in iter_local_callers(data, repo_root):
-            declared = plan.input_names_for(candidates)
-            if declared is None:
-                continue  # not a local target in this run: cannot check
-            if fix:
-                _fix_with_keys(with_map, declared, uses, context)
-            else:
-                _report_with_keys(with_map, declared, uses, context)
+        for caller, uses, candidates in iter_local_callers(data, repo_root):
+            _check_inputs(caller, uses, candidates, plan, context)
+            _check_secrets(caller, uses, candidates, plan, context)
 
 
 def iter_local_callers(data: CommentedMap, repo_root: Path) -> Iterator[Caller]:
-    """Yields every `uses: ./...` call that has a `with:` block."""
+    """Yields every mapping with a `uses:` reference (jobs and steps)."""
     jobs = get_map(data, "jobs")
     if jobs is not None:
         for job in jobs.values():
             if isinstance(job, CommentedMap):
-                yield from _callers_in_job(job, repo_root)
+                yield from _caller(job, repo_root)
+                yield from _step_callers(job, repo_root)
 
     # Composite actions call local actions from runs.steps.
     runs = get_map(data, "runs")
     if runs is not None:
         yield from _step_callers(runs, repo_root)
-
-
-def _callers_in_job(job: CommentedMap, repo_root: Path) -> Iterator[Caller]:
-    yield from _caller(job, repo_root)  # job-level reusable workflow call
-    yield from _step_callers(job, repo_root)  # step-level action calls
 
 
 def _step_callers(container: CommentedMap, repo_root: Path) -> Iterator[Caller]:
@@ -93,59 +93,118 @@ def _step_callers(container: CommentedMap, repo_root: Path) -> Iterator[Caller]:
 
 def _caller(mapping: CommentedMap, repo_root: Path) -> Iterator[Caller]:
     uses = mapping.get("uses")
-    with_map = get_map(mapping, "with")
-    if isinstance(uses, str) and with_map is not None:
-        yield uses, with_map, resolve_local_uses(uses, repo_root)
+    if isinstance(uses, str):
+        yield mapping, uses, resolve_local_uses(uses, repo_root)
 
 
-def _fix_with_keys(
-    with_map: CommentedMap, declared: set[str], uses: str, context: Context
+def _check_inputs(
+    caller: CommentedMap,
+    uses: str,
+    candidates: list[Path],
+    plan: ProjectPlan,
+    context: Context,
 ) -> None:
-    """Renames caller keys to the declared input they most likely mean.
+    declared = plan.input_names_for(candidates)
+    if declared is None:
+        return  # not a local target in this run: cannot check
+    with_map = get_map(caller, "with")
+    _check_block(with_map, declared, uses, "with", context)
+
+
+def _check_secrets(
+    caller: CommentedMap,
+    uses: str,
+    candidates: list[Path],
+    plan: ProjectPlan,
+    context: Context,
+) -> None:
+    declared = plan.secret_names_for(candidates)
+    if declared is None:
+        return  # not a local reusable workflow: no secrets to check
+    if isinstance(caller.get("secrets"), str):
+        return  # `secrets: inherit` forwards everything
+    secrets_map = get_map(caller, "secrets")
+    _check_block(secrets_map, declared, uses, "secrets", context)
+
+
+def _check_block(
+    block: CommentedMap | None,
+    declared: set[str],
+    uses: str,
+    label: str,
+    context: Context,
+) -> None:
+    """Runs the mismatch and completeness checks on one caller block."""
+    if block is not None:
+        if context.config.caller_inputs == "fix":
+            _fix_keys(block, declared, uses, label, context)
+        else:
+            _report_keys(block, declared, uses, label, context)
+    if context.config.require_explicit_inputs:
+        passed = set(block.keys()) if block is not None else set()
+        for name in sorted(declared - passed):
+            context.add_error(
+                f"{label}: '{name}' declared by local target '{uses}' is "
+                f"not passed explicitly - pass it even if a default exists"
+            )
+
+
+def _fix_keys(
+    block: CommentedMap,
+    declared: set[str],
+    uses: str,
+    label: str,
+    context: Context,
+) -> None:
+    """Renames caller keys to the declared name they most likely mean.
 
     Keys with no recognizable counterpart cannot be fixed automatically and
     are still reported as errors -- the workflow would fail on GitHub.
     """
     renames: dict[str, str] = {}
-    for key in list(with_map):
+    for key in list(block):
         if key in declared:
             continue
-        match = _closest_input(key, declared)
+        match = _closest_name(key, declared)
         if match is None:
             context.add_error(
-                f"with: input '{key}' is not declared by local target "
+                f"{label}: '{key}' is not declared by local target "
                 f"'{uses}' and has no close match - fix it manually"
             )
             continue
-        if match in with_map:
+        if match in block:
             context.add_warning(
-                f"Skipped fixing '{key}' in with: of '{uses}': "
+                f"Skipped fixing '{key}' in {label}: of '{uses}': "
                 f"'{match}' is already present"
             )
             continue
         renames[key] = match
 
     if renames:
-        rename_commented_map_keys(with_map, renames)
+        rename_commented_map_keys(block, renames)
 
 
-def _report_with_keys(
-    with_map: CommentedMap, declared: set[str], uses: str, context: Context
+def _report_keys(
+    block: CommentedMap,
+    declared: set[str],
+    uses: str,
+    label: str,
+    context: Context,
 ) -> None:
-    """Reports each caller key that is not a declared input as an error."""
-    for key in with_map:
+    """Reports each caller key that is not a declared name as an error."""
+    for key in block:
         if key in declared:
             continue
-        match = _closest_input(key, declared)
+        match = _closest_name(key, declared)
         hint = f" (did you mean '{match}'?)" if match else ""
         context.add_error(
-            f"with: input '{key}' is not declared by local target "
+            f"{label}: input '{key}' is not declared by local target "
             f"'{uses}'{hint} - fix it in both files"
         )
 
 
-def _closest_input(key: str, declared: set[str]) -> str | None:
-    """A declared input matching `key` apart from casing/separators, if any."""
+def _closest_name(key: str, declared: set[str]) -> str | None:
+    """A declared name matching `key` apart from casing/separators, if any."""
     target = _slug(key)
     for name in declared:
         if _slug(name) == target:

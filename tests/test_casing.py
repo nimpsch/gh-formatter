@@ -34,3 +34,11 @@ def test_already_formatted_unchanged():
 
 def test_only_separators_left_untouched():
     assert format_casing("___", "dash-case") == "___"
+
+
+def test_three_plus_word_names():
+    assert format_casing("myNewVariable", "dash-case") == "my-new-variable"
+    assert format_casing("myVeryLongInputName", "dash-case") == (
+        "my-very-long-input-name"
+    )
+    assert format_casing("myNewVariable", "snake_case") == "my_new_variable"

@@ -47,11 +47,11 @@ runs:
     # Skip the install entirely on a cache hit (or when disabled).
     - name: Install dependencies
       if: ${{ inputs.install-dependencies == 'true' && steps.cache.outputs.cache-hit != 'true' }}
+      working-directory: "${{ inputs.working-directory }}"
+      shell: bash
       run: |
         echo "Installing dependencies with Node ${{ inputs.node-version }}"
         npm ci
-      working-directory: "${{ inputs.working-directory }}"
-      shell: bash
 branding:
   icon: package
   color: blue

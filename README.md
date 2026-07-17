@@ -1,6 +1,6 @@
 # gh-formatter
 
-[![CI](https://github.com/nimpsch/gh-formatter/actions/workflows/ci.yml/badge.svg)](https://github.com/nimpsch/gh-formatter/actions/workflows/ci.yml)
+[![CI](https://github.com/nimpsch/gh-formatter/actions/workflows/build_and_test.yml/badge.svg)](https://github.com/nimpsch/gh-formatter/actions/workflows/build_and_test.yml)
 [![PyPI version](https://img.shields.io/pypi/v/gh-formatter.svg)](https://pypi.org/project/gh-formatter/)
 [![Python versions](https://img.shields.io/pypi/pyversions/gh-formatter.svg)](https://pypi.org/project/gh-formatter/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -25,6 +25,7 @@ A powerful and customizable formatting tool for GitHub Actions and Workflows. Au
   - `format`: Format files in-place
   - `--check`: Dry-run mode to verify formatting without making changes
   - `--diff`: Show unified diff of what would be changed
+  - `--version` / `--list-rules`: Show the version or all rule ids
 - **Caller Input Checking**: Errors (or auto-fixes) when a `uses: ./...` caller passes an input the local target doesn't declare
 - **Custom Configuration**: Support for custom configuration files to enforce your team's style guide
 - **Inline Disable Directives**: Exempt a whole file, a region, or a single line with `# gh-formatter:disable[-file|-line]` / `:enable`
@@ -61,7 +62,7 @@ repos:
 ### Requirements
 
 - Python 3.11 or higher
-- `ruamel.yaml >= 0.17.21`
+- `ruamel.yaml >= 0.19.1`
 
 ## Usage
 
@@ -186,8 +187,17 @@ preserve_uppercase_names: false
 line_endings: preserve
 
 # Quote style for already-quoted scalars: "double" (default), "single",
-# or "preserve". Plain unquoted values are never force-quoted.
+# or "preserve". Plain unquoted values are never force-quoted, and a value
+# containing the configured quote char uses the opposite one instead of
+# escaping ('say "hi"' rather than "say \"hi\"").
 quote_style: double
+
+# Caller with:-keys vs a LOCAL target's declared inputs (see "Caller input
+# checking"): "error" (default) fails the run, "fix" renames, "ignore" skips.
+caller_inputs: error
+# Require callers to pass every declared input/secret of a LOCAL target,
+# optional ones included ("secrets: inherit" counts). Needs caller_inputs.
+require_explicit_inputs: true
 
 # Let a yamllint config drive indentation (see "Using with yamllint").
 # false (default), true (auto-discover .yamllint*), or an explicit path.
@@ -215,12 +225,11 @@ blank_line_between_jobs: true
 # Key ordering (unlisted keys keep their relative order at the end)
 key_order_workflow: [name, run-name, on, concurrency, permissions, env, defaults, jobs]
 key_order_action: [name, description, author, inputs, outputs, runs, branding]
-key_order_job: [name, if, needs, runs-on, uses, with, secrets, permissions,
-                environment, concurrency, strategy, container, services,
-                outputs, env, defaults, timeout-minutes, continue-on-error,
-                steps]
-key_order_step: [name, if, id, uses, run, with, env, working-directory,
-                 shell, timeout-minutes, continue-on-error]
+key_order_job: [name, if, needs, runs-on, env, strategy, uses, with, secrets,
+                permissions, environment, concurrency, container, services,
+                outputs, defaults, timeout-minutes, continue-on-error, steps]
+key_order_step: [name, id, if, env, uses, continue-on-error,
+                 working-directory, shell, timeout-minutes, run, with]
 
 # Disable individual rules by id (see `gh-formatter --list-rules`)
 rules: {}
@@ -307,6 +316,13 @@ In `error` mode the message points at the offending key and the likely fix:
 Errors fail the run (non-zero exit) so CI catches the drift; run
 `gh-formatter --check .` in CI. Use `fix` to let gh-formatter rename caller
 keys for you, or `ignore` to turn the check off.
+
+With `require_explicit_inputs: true` (the default) callers must also pass
+**every** input and secret the local target declares — optional ones with
+defaults included — so each call site documents the full interface.
+`secrets:` blocks are checked the same way as `with:`, and
+`secrets: inherit` counts as passing them all. Set the option to `false`
+to allow relying on defaults.
 
 ## Using with yamllint
 
@@ -434,16 +450,17 @@ gh-formatter/
 │       ├── utils.py         # ruamel round-trip + shared tree traversal
 │       ├── yamllint_sync.py # Derive indentation from a yamllint config
 │       └── rules/           # Tree formatting rules
-│           ├── alphabetize.py  # Alphabetical block sorting rule
-│           ├── base.py      # Base rule class
-│           ├── inputs.py    # Input naming rule
-│           ├── callers.py   # Cross-file caller input renaming rule
-│           ├── jobs.py      # Job naming rule
-│           ├── keys.py      # Key ordering rule
-│           ├── lists.py     # Trigger filter list style rule
-│           ├── names.py     # Display name capitalization rule
-│           ├── quotes.py    # Quote style normalization rule
-│           └── style.py     # Whitespace/boolean style rule
+│           ├── alphabetize.py     # Alphabetical block sorting rule
+│           ├── base.py            # Base rule class
+│           ├── callers.py         # Caller with:-key check/fix rule
+│           ├── if_expressions.py  # Wrap bare if: conditions in ${{ }}
+│           ├── inputs.py          # Input naming rule
+│           ├── jobs.py            # Job naming rule
+│           ├── keys.py            # Key ordering rule
+│           ├── lists.py           # Trigger filter list style rule
+│           ├── names.py           # Display name capitalization rule
+│           ├── quotes.py          # Quote style normalization rule
+│           └── style.py           # Whitespace/boolean style rule
 ├── tests/                   # Test suite
 ├── examples/                # Example workflow files
 └── README.md               # This file
