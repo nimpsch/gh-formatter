@@ -6,9 +6,9 @@ from ruamel.yaml.scalarstring import (
     SingleQuotedScalarString,
 )
 
-from gh_formatter.context import Context
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.utils import iter_tree_slots
+from gh_formatter.core.context import Context
+from gh_formatter.core.rules.base import BaseRule
+from gh_formatter.core.tree import iter_tree_slots
 
 # Scalars ruamel tags with an explicit quote style. Plain and block
 # (literal/folded) scalars are deliberately excluded so that `run: |`

@@ -3,15 +3,48 @@
 from __future__ import annotations
 
 import os
-from typing import Any, cast
+from enum import StrEnum
+from typing import Any, TypeVar, cast
 
 from ruamel.yaml import YAML
 
-VALID_CASINGS = ("dash-case", "snake_case")
-VALID_LIST_STYLES = ("flow", "block")
-VALID_LINE_ENDINGS = ("preserve", "lf")
-VALID_QUOTE_STYLES = ("preserve", "single", "double")
-VALID_CALLER_INPUTS = ("ignore", "error", "fix")
+
+class Casing(StrEnum):
+    """Naming convention for renamed identifiers (inputs, jobs)."""
+
+    DASH = "dash-case"
+    SNAKE = "snake_case"
+
+
+class ListStyle(StrEnum):
+    """YAML style for trigger filter lists under `on:`."""
+
+    FLOW = "flow"
+    BLOCK = "block"
+
+
+class LineEndings(StrEnum):
+    """Line-ending policy for written files."""
+
+    PRESERVE = "preserve"
+    LF = "lf"
+
+
+class QuoteStyle(StrEnum):
+    """Normalization target for already-quoted scalars."""
+
+    PRESERVE = "preserve"
+    SINGLE = "single"
+    DOUBLE = "double"
+
+
+class CallerInputsMode(StrEnum):
+    """How caller with:/secrets: keys are checked against local targets."""
+
+    IGNORE = "ignore"
+    ERROR = "error"
+    FIX = "fix"
+
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "indent": 2,
@@ -168,28 +201,20 @@ class Config:
         self.sequence_offset = _require_int(
             merged, "sequence_offset", minimum=0
         )
-        self.input_casing = _require_choice(
-            merged, "input_casing", VALID_CASINGS
-        )
-        self.job_casing = _require_choice(merged, "job_casing", VALID_CASINGS)
+        self.input_casing = _require_enum(merged, "input_casing", Casing)
+        self.job_casing = _require_enum(merged, "job_casing", Casing)
         self.preserve_uppercase_names = _require_bool(
             merged, "preserve_uppercase_names"
         )
-        self.line_endings = _require_choice(
-            merged, "line_endings", VALID_LINE_ENDINGS
-        )
-        self.quote_style = _require_choice(
-            merged, "quote_style", VALID_QUOTE_STYLES
-        )
-        self.caller_inputs = _require_choice(
-            merged, "caller_inputs", VALID_CALLER_INPUTS
+        self.line_endings = _require_enum(merged, "line_endings", LineEndings)
+        self.quote_style = _require_enum(merged, "quote_style", QuoteStyle)
+        self.caller_inputs = _require_enum(
+            merged, "caller_inputs", CallerInputsMode
         )
         self.require_explicit_inputs = _require_bool(
             merged, "require_explicit_inputs"
         )
-        self.list_style = _require_choice(
-            merged, "list_style", VALID_LIST_STYLES
-        )
+        self.list_style = _require_enum(merged, "list_style", ListStyle)
         self.alphabetize = _require_str_list(merged, "alphabetize")
         self.blank_line_between_steps = _require_bool(
             merged, "blank_line_between_steps"
@@ -319,15 +344,18 @@ def _require_yamllint_ref(
     )
 
 
-def _require_choice(
-    data: dict[str, Any], key: str, choices: tuple[str, ...]
-) -> str:
+_E = TypeVar("_E", bound=StrEnum)
+
+
+def _require_enum(data: dict[str, Any], key: str, enum_type: type[_E]) -> _E:
     value = data[key]
-    if value not in choices:
+    try:
+        return enum_type(value)
+    except ValueError:
+        choices = ", ".join(member.value for member in enum_type)
         raise ConfigError(
-            f"'{key}' must be one of {', '.join(choices)}, got {value!r}."
-        )
-    return str(value)
+            f"'{key}' must be one of {choices}, got {value!r}."
+        ) from None
 
 
 def _require_str_list(data: dict[str, Any], key: str) -> list[str]:

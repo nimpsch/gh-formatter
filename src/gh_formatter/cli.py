@@ -1,115 +1,18 @@
 """Command-line interface: argument parsing and orchestration."""
 
 import argparse
-import difflib
+import logging
 import os
 import sys
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from pathlib import Path
 
 from gh_formatter import __version__
+from gh_formatter.app.planning import build_project_plan
+from gh_formatter.app.service import FileResult, FileStatus, process_file
 from gh_formatter.config import Config, ConfigError
-from gh_formatter.context import Context
-from gh_formatter.discovery import find_yaml_files
-from gh_formatter.engine import Engine
-from gh_formatter.project import ProjectPlan, build_project_plan
-
-
-class FileStatus(Enum):
-    UNCHANGED = "unchanged"
-    CHANGED = "changed"
-    ERROR = "error"
-
-
-@dataclass
-class FileResult:
-    status: FileStatus
-    message: str
-    warnings: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-
-
-def process_file(
-    file_path: Path,
-    engine: Engine,
-    config: Config,
-    check: bool,
-    show_diff: bool,
-    plan: ProjectPlan | None = None,
-) -> FileResult:
-    """Processes a single file, formatting it or checking for changes."""
-    try:
-        raw = file_path.read_bytes()
-    except Exception as e:
-        return FileResult(FileStatus.ERROR, f"Failed to read file: {e}")
-
-    # "preserve" keeps the file's existing line endings instead of
-    # letting Python translate to the platform default on write.
-    if config.line_endings == "lf":
-        newline = "\n"
-    else:
-        newline = "\r\n" if b"\r\n" in raw else "\n"
-    needs_newline_fix = config.line_endings == "lf" and b"\r\n" in raw
-    content = raw.decode("utf-8").replace("\r\n", "\n")
-
-    context = Context(str(file_path), config)
-    context.project_plan = plan
-
-    try:
-        formatted_content = engine.format_string(content, context)
-    except Exception as e:
-        return FileResult(
-            FileStatus.ERROR,
-            f"Failed to parse/format file: {e}",
-            context.warnings,
-            context.errors,
-        )
-
-    if content == formatted_content and not needs_newline_fix:
-        return FileResult(
-            FileStatus.UNCHANGED,
-            "Already formatted",
-            context.warnings,
-            context.errors,
-        )
-
-    if show_diff:
-        diff = difflib.unified_diff(
-            content.splitlines(keepends=True),
-            formatted_content.splitlines(keepends=True),
-            fromfile=f"a/{file_path.name}",
-            tofile=f"b/{file_path.name}",
-        )
-        return FileResult(
-            FileStatus.CHANGED, "".join(diff), context.warnings, context.errors
-        )
-
-    if check:
-        return FileResult(
-            FileStatus.CHANGED,
-            "Needs formatting",
-            context.warnings,
-            context.errors,
-        )
-
-    try:
-        with open(file_path, "w", encoding="utf-8", newline=newline) as f:
-            f.write(formatted_content)
-    except Exception as e:
-        return FileResult(
-            FileStatus.ERROR,
-            f"Failed to write file: {e}",
-            context.warnings,
-            context.errors,
-        )
-
-    return FileResult(
-        FileStatus.CHANGED,
-        "Formatted successfully",
-        context.warnings,
-        context.errors,
-    )
+from gh_formatter.core.pipeline import Engine
+from gh_formatter.io.discovery import find_yaml_files
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -168,6 +71,9 @@ def _list_rules(engine: Engine) -> None:
 
 
 def main() -> None:
+    # Internal diagnostics (e.g. a nonexistent path) go to stderr with the
+    # bare message, matching the previous print-based output.
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
     parser = _build_parser()
     args = parser.parse_args()
     engine = Engine()

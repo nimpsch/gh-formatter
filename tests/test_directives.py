@@ -3,9 +3,9 @@
 import pytest
 
 from gh_formatter.config import Config
-from gh_formatter.context import Context
-from gh_formatter.directives import scan_disabled
-from gh_formatter.engine import Engine
+from gh_formatter.core.context import Context
+from gh_formatter.core.directives import scan_disabled
+from gh_formatter.core.pipeline import Engine
 
 
 @pytest.fixture

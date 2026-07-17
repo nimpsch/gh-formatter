@@ -436,31 +436,27 @@ pytest
 gh-formatter/
 ├── src/
 │   └── gh_formatter/
-│       ├── cli.py           # Command-line interface
-│       ├── casing.py        # Casing conversion + safe rename planning
-│       ├── comments.py      # Comment-preserving key reordering
-│       ├── config.py        # Configuration loading and validation
-│       ├── context.py       # Processing context (file type, warnings, directives)
-│       ├── directives.py    # Inline disable directives (gh-formatter:disable*)
-│       ├── discovery.py     # Workflow/action file discovery
-│       ├── engine.py        # Pipeline: rules -> dump -> post-processors
-│       ├── postprocess.py   # Text post-processors (blank lines)
-│       ├── project.py       # Cross-file rename planning
-│       ├── references.py    # Expression reference rewriting
-│       ├── utils.py         # ruamel round-trip + shared tree traversal
-│       ├── yamllint_sync.py # Derive indentation from a yamllint config
-│       └── rules/           # Tree formatting rules
-│           ├── alphabetize.py     # Alphabetical block sorting rule
-│           ├── base.py            # Base rule class
-│           ├── callers.py         # Caller with:-key check/fix rule
-│           ├── if_expressions.py  # Wrap bare if: conditions in ${{ }}
-│           ├── inputs.py          # Input naming rule
-│           ├── jobs.py            # Job naming rule
-│           ├── keys.py            # Key ordering rule
-│           ├── lists.py           # Trigger filter list style rule
-│           ├── names.py           # Display name capitalization rule
-│           ├── quotes.py          # Quote style normalization rule
-│           └── style.py           # Whitespace/boolean style rule
+│       ├── cli.py               # Presentation: argparse, printing, exit codes
+│       ├── config.py            # Options schema (enums), validation, loading
+│       ├── yamllint_sync.py     # Derive indentation from a yamllint config
+│       ├── core/                # Domain: pure tree/text transformations, no I/O
+│       │   ├── pipeline.py      # Engine: rules -> dump -> post-processors
+│       │   ├── comments.py      # Comment-preserving key reordering
+│       │   ├── tree.py          # Typed tree accessors + traversal
+│       │   ├── yaml_io.py       # ruamel parser/dumper configuration (StringIO)
+│       │   ├── casing.py        # Casing conversion + safe rename planning
+│       │   ├── references.py    # Expression reference rewriting
+│       │   ├── directives.py    # Inline disable directives
+│       │   ├── postprocess.py   # Text post-processors (blank lines)
+│       │   ├── context.py       # Per-file context (config, diagnostics)
+│       │   ├── diagnostics.py   # Diagnostic value objects
+│       │   └── rules/           # One formatting rule per module
+│       ├── app/                 # Application: frontend-agnostic orchestration
+│       │   ├── service.py       # process_file: read -> format -> write/report
+│       │   └── planning.py      # Cross-file caller/input planning
+│       └── io/                  # Infrastructure: filesystem only
+│           ├── files.py         # Read/write with line-ending policy
+│           └── discovery.py     # Workflow/action file discovery
 ├── tests/                   # Test suite
 ├── examples/                # Example workflow files
 └── README.md               # This file

@@ -10,7 +10,7 @@ import re
 from abc import ABC, abstractmethod
 
 from gh_formatter.config import Config
-from gh_formatter.context import Context
+from gh_formatter.core.context import Context
 
 # A value position opening a block scalar, e.g. `run: |`, `run: |-`,
 # `description: >-2`, or a sequence item `- |`. Matched against the

@@ -2,21 +2,21 @@
 
 from ruamel.yaml.comments import CommentedMap
 
-from gh_formatter.context import Context
-from gh_formatter.directives import mark_disabled_nodes, scan_disabled
-from gh_formatter.postprocess import BasePostProcessor, BlankLinesProcessor
-from gh_formatter.rules.alphabetize import AlphabetizeRule
-from gh_formatter.rules.base import BaseRule
-from gh_formatter.rules.callers import CallerInputRule
-from gh_formatter.rules.if_expressions import IfExpressionRule
-from gh_formatter.rules.inputs import InputNamingRule
-from gh_formatter.rules.jobs import JobNamingRule
-from gh_formatter.rules.keys import KeyOrderingRule
-from gh_formatter.rules.lists import ListStyleRule
-from gh_formatter.rules.names import CapitalizeNamesRule
-from gh_formatter.rules.quotes import QuoteStyleRule
-from gh_formatter.rules.style import StyleRule
-from gh_formatter.utils import dump_yaml, load_yaml
+from gh_formatter.core.context import Context
+from gh_formatter.core.directives import mark_disabled_nodes, scan_disabled
+from gh_formatter.core.postprocess import BasePostProcessor, BlankLinesProcessor
+from gh_formatter.core.rules.alphabetize import AlphabetizeRule
+from gh_formatter.core.rules.base import BaseRule
+from gh_formatter.core.rules.callers import CallerInputRule
+from gh_formatter.core.rules.if_expressions import IfExpressionRule
+from gh_formatter.core.rules.inputs import InputNamingRule
+from gh_formatter.core.rules.jobs import JobNamingRule
+from gh_formatter.core.rules.keys import KeyOrderingRule
+from gh_formatter.core.rules.lists import ListStyleRule
+from gh_formatter.core.rules.names import CapitalizeNamesRule
+from gh_formatter.core.rules.quotes import QuoteStyleRule
+from gh_formatter.core.rules.style import StyleRule
+from gh_formatter.core.yaml_io import dump_yaml, load_yaml
 
 
 def default_rules() -> list[BaseRule]:

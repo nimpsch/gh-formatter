@@ -15,14 +15,14 @@ from pathlib import Path
 from ruamel.yaml.comments import CommentedMap
 
 from gh_formatter.config import Config
-from gh_formatter.context import Context
-from gh_formatter.directives import mark_disabled_nodes, scan_disabled
-from gh_formatter.rules.inputs import (
+from gh_formatter.core.context import Context
+from gh_formatter.core.directives import mark_disabled_nodes, scan_disabled
+from gh_formatter.core.rules.inputs import (
     callable_input_names,
     callable_secret_names,
     plan_input_renames,
 )
-from gh_formatter.utils import load_yaml
+from gh_formatter.core.yaml_io import load_yaml
 
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 
@@ -49,6 +49,24 @@ class ProjectPlan:
         """Declared secret names of the first known candidate, else None."""
         return self._first_match(self.secret_names, candidates)
 
+    def interface_for(
+        self, uses: str, caller_path: str | None
+    ) -> CallerInterface | None:
+        """Resolves a caller's `uses:` reference against this run's targets.
+
+        Returns None when the reference is not a local target known to the
+        plan, so the caller cannot be checked.
+        """
+        repo_root = find_repo_root(caller_path)
+        if repo_root is None:
+            return None
+        candidates = resolve_local_uses(uses, repo_root)
+        inputs = self.input_names_for(candidates)
+        secrets = self.secret_names_for(candidates)
+        if inputs is None and secrets is None:
+            return None
+        return CallerInterface(inputs, secrets)
+
     @staticmethod
     def _first_match(
         table: dict[Path, set[str]], candidates: list[Path]
@@ -57,6 +75,18 @@ class ProjectPlan:
             if candidate in table:
                 return table[candidate]
         return None
+
+
+@dataclass(frozen=True, slots=True)
+class CallerInterface:
+    """What a local `uses:` target accepts from its callers.
+
+    ``inputs``/``secrets`` are None when that aspect cannot be checked
+    (e.g. actions take no secrets; the target may not be callable).
+    """
+
+    inputs: set[str] | None
+    secrets: set[str] | None
 
 
 def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:

@@ -1,8 +1,10 @@
 """Discovery of workflow and action files on disk."""
 
+import logging
 import os
-import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Common directories to skip during recursive search
 IGNORED_DIRS = {
@@ -32,7 +34,7 @@ def find_yaml_files(paths: list[str]) -> list[Path]:
     for raw_path in paths:
         path = Path(raw_path)
         if not path.exists():
-            print(f"Error: Path '{raw_path}' does not exist.", file=sys.stderr)
+            logger.error("Error: Path '%s' does not exist.", raw_path)
             continue
 
         if path.is_file():

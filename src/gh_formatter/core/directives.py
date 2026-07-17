@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 if TYPE_CHECKING:
-    from gh_formatter.context import Context
+    from gh_formatter.core.context import Context
 
 # Matches `# gh-formatter:disable`, `# gh-formatter: enable`,
 # `# gh-formatter disable-line`, etc. Longer keywords first so `disable`

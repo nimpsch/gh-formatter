@@ -4,7 +4,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from gh_formatter.utils import restyle_scalar
+from gh_formatter.core.tree import restyle_scalar
 
 
 def replace_expression_references(
