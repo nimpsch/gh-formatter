@@ -41,7 +41,14 @@ class BasePostProcessor(ABC):
 
 
 class BlankLinesProcessor(BasePostProcessor):
-    """Inserts blank lines between steps and between jobs."""
+    """Normalizes blank lines between steps and between jobs.
+
+    Inside the jobs/steps scope, blank lines carry no meaning except as
+    step/job separators, so stray ones (hand-written between a job's
+    settings, or left behind by key reordering) are removed and the
+    canonical separators are inserted. Blank lines outside jobs (root
+    section separators, `on:` blocks) and inside scripts are untouched.
+    """
 
     @property
     def id(self) -> str:
@@ -49,11 +56,15 @@ class BlankLinesProcessor(BasePostProcessor):
 
     @property
     def description(self) -> str:
-        return "Insert blank lines between steps and between jobs"
+        return "Normalize blank lines between steps and between jobs"
 
     def should_run(self, context: Context) -> bool:
         config = context.config
-        return config.blank_line_between_steps or config.blank_line_between_jobs
+        return (
+            config.blank_line_between_steps
+            or config.blank_line_between_jobs
+            or config.blank_line_between_sections
+        )
 
     def apply(self, text: str, context: Context) -> str:
         scanner = _BlankLineScanner(context.config)
@@ -74,15 +85,22 @@ class _BlankLineScanner:
         self.result: list[str] = []
         self.in_block_scalar = False
         self.block_scalar_indent = 0
+        self._pending_blanks: list[str] = []
+        self.saw_root_key = False
         self.in_steps = False
         self.step_dash_col = 0
         self.in_jobs = False
         self.job_indent = config.indent
 
     def run(self, lines: list[str]) -> list[str]:
-        for line in lines:
+        # A trailing "" from splitting a newline-terminated text is the
+        # final-newline artifact, not a blank line: never strip it.
+        body, tail = (
+            (lines[:-1], [""]) if lines and lines[-1] == "" else (lines, [])
+        )
+        for line in body:
             self._feed(line)
-        return self.result
+        return self.result + tail
 
     def _feed(self, line: str) -> None:
         stripped = line.strip()
@@ -95,7 +113,23 @@ class _BlankLineScanner:
         if is_content:
             self._update_scopes(stripped, indent)
 
+        # Blank lines are only ever separators (outside scripts), and the
+        # canonical ones are re-inserted below: drop them scope-wise.
+        if not stripped:
+            if self.in_jobs or self.in_steps:
+                if (
+                    self.config.blank_line_between_steps
+                    or self.config.blank_line_between_jobs
+                ):
+                    return
+            elif self.config.blank_line_between_sections:
+                return
+
         self._maybe_separate(stripped, indent, is_content)
+        if is_content and indent == 0 and ":" in stripped:
+            if self.saw_root_key and self.config.blank_line_between_sections:
+                _separate_section(self.result)
+            self.saw_root_key = True
         self.result.append(line)
 
         if is_content and _BLOCK_SCALAR_OPENER.search(stripped):
@@ -105,12 +139,27 @@ class _BlankLineScanner:
     def _consume_block_scalar(
         self, line: str, stripped: str, indent: int
     ) -> bool:
-        """Swallows lines inside a block scalar; returns True when it does."""
+        """Swallows lines inside a block scalar; returns True when it does.
+
+        Blank lines are held back until the next line shows whether they
+        are script content (more block lines follow: keep them) or the
+        separator to the next key/step (the block ended: drop them, the
+        canonical separator is re-inserted by the normal pass).
+        """
         if not self.in_block_scalar:
             return False
-        if stripped and indent <= self.block_scalar_indent:
+        if not stripped:
+            self._pending_blanks.append(line)
+            return True
+        if indent <= self.block_scalar_indent:
             self.in_block_scalar = False  # dedented out: process normally
+            if not (self.in_jobs or self.in_steps):
+                # Outside jobs these blanks are section separators: keep.
+                self.result.extend(self._pending_blanks)
+            self._pending_blanks.clear()
             return False
+        self.result.extend(self._pending_blanks)
+        self._pending_blanks.clear()
         self.result.append(line)
         return True
 
@@ -180,5 +229,23 @@ def _separate_item(result: list[str], opener: str) -> None:
         return
     previous = result[insert_at - 1].strip()
     if previous == "" or previous == opener or previous.startswith(opener):
+        return
+    result.insert(insert_at, "")
+
+
+def _separate_section(result: list[str]) -> None:
+    """Inserts one blank line before the top-level section being appended.
+
+    Comment lines directly above the section belong to it, so the blank
+    goes above them; nothing is inserted right after the document-start
+    marker or when a blank is already present.
+    """
+    insert_at = len(result)
+    while insert_at > 0 and result[insert_at - 1].lstrip().startswith("#"):
+        insert_at -= 1
+    if insert_at == 0:
+        return
+    previous = result[insert_at - 1].strip()
+    if previous == "" or previous == "---":
         return
     result.insert(insert_at, "")

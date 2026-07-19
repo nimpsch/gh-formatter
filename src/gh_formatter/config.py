@@ -92,6 +92,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "alphabetize": ["env", "inputs", "outputs", "secrets", "with"],
     "blank_line_between_steps": True,
     "blank_line_between_jobs": True,
+    # Exactly one blank line between top-level sections (name/on/env/jobs,
+    # or an action's name/inputs/runs, ...); author blanks inside section
+    # bodies are removed so the spacing is consistent either way.
+    "blank_line_between_sections": True,
     # Trigger filter keys under `on:` whose values are normalized to lists
     "list_keys": [
         "branches",
@@ -221,6 +225,9 @@ class Config:
         )
         self.blank_line_between_jobs = _require_bool(
             merged, "blank_line_between_jobs"
+        )
+        self.blank_line_between_sections = _require_bool(
+            merged, "blank_line_between_sections"
         )
         self.list_keys = _require_str_list(merged, "list_keys")
         self.key_order_workflow = _require_str_list(

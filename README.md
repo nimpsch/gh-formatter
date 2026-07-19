@@ -218,9 +218,10 @@ list_keys:           # which keys under `on:` are treated as filter lists
   - types
   - workflows
 
-# Blank lines
+# Blank lines (normalized: stray blanks are removed, canonical ones added)
 blank_line_between_steps: true
 blank_line_between_jobs: true
+blank_line_between_sections: true   # one blank between top-level sections
 
 # Key ordering (unlisted keys keep their relative order at the end)
 key_order_workflow: [name, run-name, on, concurrency, permissions, env, defaults, jobs]
