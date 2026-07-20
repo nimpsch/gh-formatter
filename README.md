@@ -390,6 +390,11 @@ See the `examples/` directory for sample workflow and action files:
 - `workflow_example.yml`: Basic workflow example
 - `reusable_workflow_example.yml`: Reusable workflow example
 - `caller_workflow_example.yml`: Workflow that calls reusable workflows
+- `codeql.yml`: CodeQL security scanning workflow
+- `docker-publish.yml`: Docker build-and-publish workflow
+- `composite_action/action.yml`: Composite action example
+- `long_workflow.yml`: Worst-case stress test exercising every rule at once
+  (anchors/aliases, matrices, services, containers, inline scripts, ...)
 
 ## Development
 
