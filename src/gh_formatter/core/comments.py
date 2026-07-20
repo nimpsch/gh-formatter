@@ -227,8 +227,12 @@ def _finish_last_key(
     a container-valued key it renders directly after the key line -- before
     the nested block -- so trailing content must ride the container's
     deepest last entry to actually appear at the end.
+
+    A key that carried a blank separator (``blank_keys``) and was reordered
+    into the last slot keeps that blank as the mapping's trailing separator,
+    rather than losing it because there is no longer a following sibling.
     """
-    blank = layout.trailing_blank
+    blank = layout.trailing_blank or key in layout.blank_keys
     slot_info = _deep_tail_slot(data[key])
     if slot_info is not None and (layout.trailing or blank):
         token = _build_post_token(layout.eol.get(key), [])

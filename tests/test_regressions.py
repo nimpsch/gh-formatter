@@ -694,3 +694,82 @@ jobs:
     formatted, _ = fmt(engine, workflow)
     assert "exit 1\n\n      - run: echo next" in formatted
     assert "\n\n\n" not in formatted
+
+
+def test_double_blank_after_root_block_scalar_collapsed(engine):
+    """A run of blanks after a root-level block scalar collapses to the
+    single canonical section separator, like any other section boundary."""
+    workflow = """name: ci
+env:
+  SCRIPT: |
+    one
+    two
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "two\n\njobs:" in formatted
+    assert "\n\n\n" not in formatted
+    assert engine.format_string(formatted, _context()) == formatted
+
+
+def test_disabled_step_scope_leaves_step_blanks_untouched(engine):
+    """`blank_line_between_steps: false` must protect blanks inside a step
+    even when another scope's flag (jobs) is enabled."""
+    config = Config(
+        {
+            "blank_line_between_steps": False,
+            "blank_line_between_jobs": True,
+            "blank_line_between_sections": False,
+        }
+    )
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: A
+        working-directory: .
+
+        run: echo a
+"""
+    formatted, _ = fmt(engine, workflow, config=config)
+    # The author blank between the step's keys survives.
+    assert "working-directory: .\n\n        run: echo a" in formatted
+
+
+def test_blank_key_reordered_last_keeps_its_blank(engine):
+    """A scalar key that owned a trailing blank and is alphabetized into the
+    last slot keeps the blank (as the block's trailing separator) instead of
+    losing it entirely."""
+    config = Config(
+        {
+            "blank_line_between_steps": False,
+            "blank_line_between_jobs": False,
+            "blank_line_between_sections": False,
+            "alphabetize": ["env"],
+        }
+    )
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      Z: "1"
+
+      A: "2"
+    steps:
+      - run: echo hi
+"""
+    formatted, _ = fmt(engine, workflow, config=config)
+    # env sorts to A, Z; the blank is preserved, not dropped.
+    assert 'A: "2"\n      Z: "1"' in formatted
+    assert "\n\n" in formatted.split("env:")[1].split("steps:")[0]
+    # Stable across a second pass with the same config.
+    reformatted, _ = fmt(engine, formatted, config=config)
+    assert reformatted == formatted

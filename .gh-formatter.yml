@@ -150,14 +150,23 @@ list_keys:
 # BLANK LINES
 # ===========
 
-# Insert a blank line between consecutive steps (default: true)
+# Blank lines are normalized per scope: each flag enforces exactly one
+# blank line between that scope's siblings and removes stray blanks inside
+# a sibling's body (both hand-written and left behind by key reordering).
+# A scope whose flag is false is left exactly as written. Blank lines
+# inside a `run:` script (a block scalar) are content and always kept.
+
+# Steps scope: one blank between consecutive steps, none within a step
+# (default: true)
 blank_line_between_steps: true
 
-# Insert a blank line between job definitions (default: true)
+# Jobs scope: one blank between job definitions, none within a job body
+# (default: true)
 blank_line_between_jobs: true
 
-# Exactly one blank line between top-level sections; stray blanks inside
-# section bodies are removed so spacing is always consistent (default: true)
+# Sections scope: one blank between top-level sections (name/on/env/jobs,
+# or an action's name/inputs/runs, ...), none stray inside a section body
+# -- e.g. a blank between two `on:` triggers is removed (default: true)
 blank_line_between_sections: true
 
 

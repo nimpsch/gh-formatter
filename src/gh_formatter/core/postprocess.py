@@ -41,13 +41,15 @@ class BasePostProcessor(ABC):
 
 
 class BlankLinesProcessor(BasePostProcessor):
-    """Normalizes blank lines between steps and between jobs.
+    """Normalizes blank lines between steps, jobs, and top-level sections.
 
-    Inside the jobs/steps scope, blank lines carry no meaning except as
-    step/job separators, so stray ones (hand-written between a job's
-    settings, or left behind by key reordering) are removed and the
-    canonical separators are inserted. Blank lines outside jobs (root
-    section separators, `on:` blocks) and inside scripts are untouched.
+    Blank lines carry no meaning except as separators between siblings, so
+    each tracked scope is normalized to exactly one blank between its
+    siblings and none stray inside a sibling's body (whether hand-written
+    or left behind by key reordering). Three scopes are tracked, each gated
+    by its own config flag: steps, jobs, and top-level sections. A scope
+    whose flag is disabled is left exactly as written. Blank lines inside a
+    `run:` script (a block scalar) are content and are always preserved.
     """
 
     @property
@@ -56,7 +58,7 @@ class BlankLinesProcessor(BasePostProcessor):
 
     @property
     def description(self) -> str:
-        return "Normalize blank lines between steps and between jobs"
+        return "Normalize blank lines between steps, jobs, and sections"
 
     def should_run(self, context: Context) -> bool:
         config = context.config
@@ -115,20 +117,13 @@ class _BlankLineScanner:
 
         # Blank lines are only ever separators (outside scripts), and the
         # canonical ones are re-inserted below: drop them scope-wise.
-        if not stripped:
-            if self.in_jobs or self.in_steps:
-                if (
-                    self.config.blank_line_between_steps
-                    or self.config.blank_line_between_jobs
-                ):
-                    return
-            elif self.config.blank_line_between_sections:
-                return
+        if not stripped and self._should_drop_blank():
+            return
 
         self._maybe_separate(stripped, indent, is_content)
         if is_content and indent == 0 and ":" in stripped:
             if self.saw_root_key and self.config.blank_line_between_sections:
-                _separate_section(self.result)
+                _insert_blank_before(self.result)
             self.saw_root_key = True
         self.result.append(line)
 
@@ -143,25 +138,43 @@ class _BlankLineScanner:
 
         Blank lines are held back until the next line shows whether they
         are script content (more block lines follow: keep them) or the
-        separator to the next key/step (the block ended: drop them, the
-        canonical separator is re-inserted by the normal pass).
+        separator to the next key/step (the block ended: normalize them,
+        the canonical separator is re-inserted by the normal pass).
         """
         if not self.in_block_scalar:
             return False
         if not stripped:
             self._pending_blanks.append(line)
             return True
+        pending, self._pending_blanks = self._pending_blanks, []
         if indent <= self.block_scalar_indent:
             self.in_block_scalar = False  # dedented out: process normally
-            if not (self.in_jobs or self.in_steps):
-                # Outside jobs these blanks are section separators: keep.
-                self.result.extend(self._pending_blanks)
-            self._pending_blanks.clear()
+            # These trailing blanks separate the block from the next
+            # key/step; treat them exactly like any other separator so the
+            # scope's flag decides whether they collapse to the canonical
+            # single blank or stay untouched.
+            if not self._should_drop_blank():
+                self.result.extend(pending)
             return False
-        self.result.extend(self._pending_blanks)
-        self._pending_blanks.clear()
+        # Still inside the block: the blanks were script content.
+        self.result.extend(pending)
         self.result.append(line)
         return True
+
+    def _should_drop_blank(self) -> bool:
+        """Whether a blank in the current scope is a normalizable separator.
+
+        Each scope is governed by its own flag, so disabling one scope's
+        normalization (e.g. ``blank_line_between_steps``) leaves that
+        scope's blanks untouched instead of being swept up by another
+        scope's flag. The dropped blank's canonical replacement, if any, is
+        re-inserted at the next sibling boundary.
+        """
+        if self.in_steps:
+            return self.config.blank_line_between_steps
+        if self.in_jobs:
+            return self.config.blank_line_between_jobs
+        return self.config.blank_line_between_sections
 
     def _update_scopes(self, stripped: str, indent: int) -> None:
         if self.in_steps and self._is_leaving_steps(stripped, indent):
@@ -186,9 +199,9 @@ class _BlankLineScanner:
             # ruamel places sequence dashes at key indent + offset
             self.step_dash_col = indent + self.config.sequence_offset
         elif self._starts_new_step(stripped, indent):
-            _separate_item(self.result, "steps:")
+            _insert_blank_before(self.result, opener="steps:")
         elif self._starts_new_job(stripped, indent, is_content):
-            _separate_item(self.result, "jobs:")
+            _insert_blank_before(self.result, opener="jobs:")
 
     def _starts_new_step(self, stripped: str, indent: int) -> bool:
         return (
@@ -215,30 +228,14 @@ def _is_sequence_item(stripped: str) -> bool:
     return stripped == "-" or stripped.startswith("- ")
 
 
-def _separate_item(result: list[str], opener: str) -> None:
-    """Inserts a blank line before the item the caller is about to append.
+def _insert_blank_before(result: list[str], opener: str | None = None) -> None:
+    """Inserts one blank line before the element about to be appended.
 
-    Comment lines directly above the item belong to it, so the blank line
-    goes above them. No blank line is inserted for the first item (right
-    after the opening `steps:`/`jobs:` key) or when one is already there.
-    """
-    insert_at = len(result)
-    while insert_at > 0 and result[insert_at - 1].lstrip().startswith("#"):
-        insert_at -= 1
-    if insert_at == 0:
-        return
-    previous = result[insert_at - 1].strip()
-    if previous == "" or previous == opener or previous.startswith(opener):
-        return
-    result.insert(insert_at, "")
-
-
-def _separate_section(result: list[str]) -> None:
-    """Inserts one blank line before the top-level section being appended.
-
-    Comment lines directly above the section belong to it, so the blank
-    goes above them; nothing is inserted right after the document-start
-    marker or when a blank is already present.
+    Comment lines directly above the element belong to it, so the blank
+    goes above them. Nothing is inserted at the start of the document, when
+    a blank is already present, after the ``---`` document marker, or after
+    the container opener (``steps:``/``jobs:``, passed as ``opener``) -- in
+    those cases there is no prior sibling to separate from.
     """
     insert_at = len(result)
     while insert_at > 0 and result[insert_at - 1].lstrip().startswith("#"):
@@ -247,5 +244,7 @@ def _separate_section(result: list[str]) -> None:
         return
     previous = result[insert_at - 1].strip()
     if previous == "" or previous == "---":
+        return
+    if opener is not None and previous.startswith(opener):
         return
     result.insert(insert_at, "")
