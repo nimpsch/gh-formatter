@@ -43,6 +43,7 @@ on:
           - info
           - debug
           - warn
+
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
   group: "ci-${{ github.ref }}"

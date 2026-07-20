@@ -6,6 +6,7 @@ name: Setup Project
 description: "Check out, install a toolchain, and cache dependencies"
 
 author: "Sebastian Nimpsch"
+
 inputs:
   install-dependencies:
     description: "Whether to run the dependency install step"
@@ -19,6 +20,7 @@ inputs:
     description: "Directory to run install commands in"
     required: false
     default: "."
+
 # Outputs are wired from step ids below so callers can react to them.
 outputs:
   cache-hit:
@@ -27,6 +29,7 @@ outputs:
   node-version:
     description: "The resolved Node.js version"
     value: "${{ steps.setup-node.outputs.node-version }}"
+
 runs:
   using: composite  # composite actions run a list of steps, like a job
   steps:
@@ -52,6 +55,7 @@ runs:
       run: |
         echo "Installing dependencies with Node ${{ inputs.node-version }}"
         npm ci
+
 branding:
   icon: package
   color: blue

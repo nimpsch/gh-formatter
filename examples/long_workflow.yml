@@ -1,0 +1,333 @@
+# THIS FILE IS INTENTIONALLY UGLY.
+# It is designed to stress parsers/formatters.
+# Multi-line comment:
+#   This workflow intentionally mixes styles,
+#   contains deeply nested expressions,
+#   huge inline scripts,
+#   anchors + aliases (NOT merge keys — GitHub does not support `<<`),
+#   matrices,
+#   reusable workflow calls,
+#   services,
+#   outputs,
+#   environments,
+#   permissions,
+#   concurrency,
+#   containers,
+#   composite shell logic,
+#   continue-on-error,
+#   timeout settings,
+#   strategy.fail-fast,
+#   defaults,
+#   if expressions,
+#   workflow_dispatch inputs,
+#   schedule,
+#   workflow_call,
+#   workflow_run,
+#   secrets,
+#   artifacts,
+#   caches,
+#   summaries,
+#   etc.
+#
+# NOTE ON ANCHORS: GitHub Actions' YAML parser supports anchors (&name) and
+# aliases (*name) for reusing whole nodes, but it does NOT support the YAML
+# merge key (<<: *name) for merging a mapping's keys into another mapping.
+# Every anchor below is therefore reused by substituting an ENTIRE value
+# (a whole step, a whole scalar, a whole mapping) rather than merged in.
+name: "Formatter Destroyer"
+
+run-name: >-
+  ${{ github.workflow }} /
+  ${{ github.event_name }} /
+  ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry:
+        default: false
+        type: boolean
+      json:
+        required: false
+        default: '{"a":1,"b":[2,3],"nested":{"x":true}}'
+      mode:
+        required: false
+        default: fast
+        type: choice
+        options: [fast, slow, "extremely slow", crazy]
+  workflow_call:
+    inputs:
+      target:
+        required: false
+        type: string
+    outputs:
+      example:
+        value: ${{ jobs.prepare.outputs.example }}
+  schedule:
+    - cron: "17 3 * * 1"
+  push:
+    branches:
+      - main
+      - master
+      - "feature/**"
+    tags:
+      - "v*"
+  pull_request:
+  workflow_run:
+    workflows:
+      - "CI"
+      - "Build"
+    types:
+      - completed
+
+concurrency:
+  group: >-
+    workflow-${{ github.ref }}-${{ github.event_name }}-${{ github.workflow }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: write
+  actions: write
+  packages: read
+  deployments: write
+  pull-requests: write
+  id-token: write
+  discussions: write
+  issues: write
+  checks: write
+  statuses: write
+
+env:
+  GLOBAL: "yes"
+  JSON: >
+    {"alpha":[1,2,3],"beta":{"hello":"world"}}
+  VERY_LONG: |
+    one
+    two
+    three
+    four
+    five
+    six
+    seven
+    eight
+    nine
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on:
+      - ubuntu-latest
+    outputs:
+      example: ${{ steps.out.outputs.value }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    timeout-minutes: &default_timeout 5
+    continue-on-error: &default_coe false
+    steps:
+      - &checkout_step
+        name: Checkout
+        uses: actions/checkout@v4
+
+      - id: matrix
+        run: |
+          echo 'matrix={"include":[{"os":"ubuntu-latest","python":"3.12"},{"os":"windows-latest","python":"3.11"},{"os":"macos-latest","python":"3.10"}]}' >> "$GITHUB_OUTPUT"
+
+      - id: out
+        run: echo "value=hello-${RANDOM}" >> "$GITHUB_OUTPUT"
+
+  ##############################################################################
+  lint:
+    if: ${{ always() && !cancelled() }}
+    needs: [prepare]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: *default_timeout
+    continue-on-error: *default_coe
+    steps:
+      - *checkout_step
+
+      - name: Javascript inline nightmare
+        shell: bash
+        run: |
+          cat > ugly.js <<'JS'
+          /*
+           This comment intentionally spans
+           multiple
+           lines
+           and contains symbols {{{{{ }}}}} ]]]]]
+           to see whether a formatter survives.
+          */
+          const weird = (((((({a:1,b:[1,2,3].map(x=>({value:x*x,nested:()=>({x,arr:[...[1,2],3]}))}))))))));
+          let x=0;for(let i=0;i<50;i++){x+=i?i*Math.random():0;}
+          console.log(JSON.stringify({x,weird,env:process.env.GITHUB_WORKFLOW,args:process.argv,time:new Date().toISOString()},null,2));
+          JS
+          node ugly.js
+
+  ##############################################################################
+  python:
+    needs:
+      - prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      max-parallel: 2
+    steps:
+      - *checkout_step
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Python inline disaster
+        run: |
+          cat > ugly.py <<'PY'
+          """
+          This comment
+          intentionally
+          spans
+          multiple
+          lines.
+          """
+          import json,os,random,time,sys,itertools,math
+          data={"numbers":[i*i for i in range(25)],"env":dict(os.environ),"random":[random.randint(1,100)for _ in range(20)]}
+          print(json.dumps(data,indent=1)[:3000])
+          print(sum(itertools.accumulate(range(100))))
+          print(math.factorial(8))
+          PY
+          python ugly.py
+
+  ##############################################################################
+  service_test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_USER: test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - run: |
+          echo testing
+          sleep 2
+
+  ##############################################################################
+  container_job:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12
+      env:
+        INSIDE: "yes"
+      options: --cpus 1
+    steps:
+      - run: python -V
+
+  ##############################################################################
+  cache_artifacts:
+    needs:
+      - lint
+      - python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('**/*.py', '**/*.js', '**/*.yml') }}
+          path: |
+            ~/.cache
+            .cache
+          restore-keys: |
+            ${{ runner.os }}-
+            cache-
+
+      - name: Bash insanity
+        shell: bash
+        run: |
+          #
+          # This comment intentionally
+          # continues
+          # for several
+          # lines
+          # while strange shell constructs
+          # are mixed below.
+          #
+          set -euxo pipefail
+          arr=(one two three four five)
+          declare -A map=([a]=1 [b]=2 [c]=3)
+          for i in "${arr[@]}"; do echo "$i"; done
+          for k in "${!map[@]}"; do echo "$k=${map[$k]}"; done
+          if [[ "${GITHUB_REF}" =~ refs/heads/.* ]]; then echo branch; fi
+          printf '%s\n' {1..30} | while read n; do ((n % 7 == 0)) && echo "$n"; done
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## Summary
+          Generated at $(date)
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: everything
+          path: .
+
+  ##############################################################################
+  reusable:
+    needs: cache_artifacts
+    uses: ./.github/workflows/reusable.yml
+    with:
+      target: all
+    secrets: inherit
+
+  ##############################################################################
+  deploy:
+    if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+    needs:
+      - reusable
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://example.com
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Pretend deploy
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo deploy
+          echo "$TOKEN" | wc -c
+
+  ##############################################################################
+  cleanup:
+    if: ${{ always() }}
+    needs:
+      - prepare
+      - lint
+      - python
+      - service_test
+      - container_job
+      - cache_artifacts
+      - reusable
+      - deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Everything expression
+        run: >
+          echo "${{ join(fromJSON('["one","two","three","four"]'), ',') }}"
+
+      - name: Final
+        run: |-
+          echo "workflow finished"
+          echo '${{ toJson(github) }}' | head -c 500

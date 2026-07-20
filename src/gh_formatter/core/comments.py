@@ -29,9 +29,13 @@ class _CommentLayout:
     pre: dict[Any, list[str]] = field(default_factory=dict)
     # comment lines after the last key
     trailing: list[str] = field(default_factory=list)
-    # positions (in the original order) followed by a blank separator line;
-    # blank lines keep their position while the entries move around them.
-    blank_after: set[int] = field(default_factory=set)
+    # Scalar-valued keys whose line was followed by a blank separator; the
+    # blank travels with its key. A blank after the LAST entry separates
+    # this mapping from its next sibling and is re-attached at the end
+    # (trailing_blank); a blank between a container key's line and its own
+    # nested content is meaningless and dropped.
+    blank_keys: set[Any] = field(default_factory=set)
+    trailing_blank: bool = False
 
 
 def reorder_commented_map(
@@ -86,7 +90,7 @@ def _decompose_comments(data: CommentedMap, keys: list[Any]) -> _CommentLayout:
         if not item or item[2] is None:
             continue
         if item[2].value.endswith("\n\n"):
-            layout.blank_after.add(idx)
+            _classify_blank(layout, data, keys, idx)
         eol_text, following = _split_post_comment(item[2].value)
         column = getattr(item[2].start_mark, "column", 0)
         if eol_text is not None:
@@ -101,6 +105,22 @@ def _decompose_comments(data: CommentedMap, keys: list[Any]) -> _CommentLayout:
 
     layout.trailing.extend(_deep_tail_comments(data, keys[-1]))
     return layout
+
+
+def _classify_blank(
+    layout: _CommentLayout, data: CommentedMap, keys: list[Any], idx: int
+) -> None:
+    """Files a blank separator found after the key at position `idx`.
+
+    A blank after the last entry separates the mapping from its next
+    sibling; a blank after a mid-map scalar line travels with that key; a
+    blank between a container key's line and its own content is noise.
+    """
+    key = keys[idx]
+    if idx == len(keys) - 1:
+        layout.trailing_blank = True
+    elif not isinstance(data[key], (CommentedMap, CommentedSeq)):
+        layout.blank_keys.add(key)
 
 
 def _route_following(
@@ -178,18 +198,17 @@ def _rebuild_comments(
     data: CommentedMap, new_order: list[Any], layout: _CommentLayout
 ) -> None:
     """Re-attaches comment tokens so each rides the line it documents."""
-    last_index = len(new_order) - 1
     for idx, key in enumerate(new_order[:-1]):
         token = _build_post_token(
             layout.eol.get(key), layout.pre[new_order[idx + 1]]
         )
-        if idx in layout.blank_after:
+        if key in layout.blank_keys:
             token = _with_blank_tail(token)
         token = _adjust_for_value(token, data[key])
         if token is not None:
             data.ca.items[key] = [None, None, token, None]
 
-    _finish_last_key(data, new_order[-1], layout, last_index)
+    _finish_last_key(data, new_order[-1], layout)
 
     # Comments before the first key have no preceding key to ride on.
     first = new_order[0]
@@ -200,7 +219,7 @@ def _rebuild_comments(
 
 
 def _finish_last_key(
-    data: CommentedMap, key: Any, layout: _CommentLayout, index: int
+    data: CommentedMap, key: Any, layout: _CommentLayout
 ) -> None:
     """Attaches trailing comments/blanks after the (new) last entry.
 
@@ -208,8 +227,12 @@ def _finish_last_key(
     a container-valued key it renders directly after the key line -- before
     the nested block -- so trailing content must ride the container's
     deepest last entry to actually appear at the end.
+
+    A key that carried a blank separator (``blank_keys``) and was reordered
+    into the last slot keeps that blank as the mapping's trailing separator,
+    rather than losing it because there is no longer a following sibling.
     """
-    blank = index in layout.blank_after
+    blank = layout.trailing_blank or key in layout.blank_keys
     slot_info = _deep_tail_slot(data[key])
     if slot_info is not None and (layout.trailing or blank):
         token = _build_post_token(layout.eol.get(key), [])

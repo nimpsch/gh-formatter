@@ -218,9 +218,12 @@ list_keys:           # which keys under `on:` are treated as filter lists
   - types
   - workflows
 
-# Blank lines
-blank_line_between_steps: true
-blank_line_between_jobs: true
+# Blank lines are normalized per scope: each flag keeps exactly one blank
+# between that scope's siblings and removes stray blanks inside a sibling's
+# body (see "Blank-line normalization"). A false flag leaves that scope as-is.
+blank_line_between_steps: true      # between steps; none within a step
+blank_line_between_jobs: true       # between jobs; none within a job body
+blank_line_between_sections: true   # between top-level sections; none within
 
 # Key ordering (unlisted keys keep their relative order at the end)
 key_order_workflow: [name, run-name, on, concurrency, permissions, env, defaults, jobs]
@@ -241,6 +244,32 @@ rules: {}
 Invalid option names or values are rejected with a clear error message
 (exit code 2).
 
+### Blank-line normalization
+
+Blank lines carry no meaning except as separators between siblings, so the
+formatter normalizes them rather than only inserting them. There are three
+scopes, each toggled by its own flag:
+
+| Scope | Flag | Siblings |
+|-------|------|----------|
+| Steps | `blank_line_between_steps` | consecutive steps in a `steps:` list |
+| Jobs | `blank_line_between_jobs` | job definitions under `jobs:` |
+| Sections | `blank_line_between_sections` | top-level keys (`name`, `on`, `env`, `jobs`, ... / an action's `name`, `inputs`, `runs`, ...) |
+
+Within an enabled scope the formatter keeps **exactly one** blank line
+between siblings and removes **stray** blanks inside a sibling's body —
+whether you wrote them by hand or they were left behind when keys were
+reordered. "Inside a sibling's body" includes blanks nested arbitrarily
+deep: for example, a blank line between two triggers under `on:`, or
+between two entries of a `permissions:` block, is removed, because those
+are section-body blanks, not separators between top-level sections. A blank
+between two consecutive `run:` script lines is **not** touched — script
+contents are always preserved verbatim.
+
+Setting a scope's flag to `false` disables normalization for that scope
+only: those blank lines are left exactly as written (neither inserted nor
+removed), while the other scopes still normalize.
+
 ### Safety guarantees
 
 - Renames that would collide with an existing input/job name are skipped
@@ -250,7 +279,7 @@ Invalid option names or values are rejected with a clear error message
 - Filter-list normalization only applies inside the `on:` section, so a
   step input that happens to be called `branches` is left alone.
 - Script contents (`run: |` blocks) are never touched by blank-line
-  insertion.
+  normalization — blank lines inside a script are preserved verbatim.
 - Original line endings (LF/CRLF) and an explicit `---` document start
   marker are preserved.
 
