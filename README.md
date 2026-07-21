@@ -29,7 +29,7 @@ A powerful and customizable formatting tool for GitHub Actions and Workflows. Au
 - **Caller Input Checking**: Errors (or auto-fixes) when a `uses: ./...` caller passes an input the local target doesn't declare
 - **Custom Configuration**: Support for custom configuration files to enforce your team's style guide
 - **Inline Disable Directives**: Exempt a whole file, a region, or a single line with `# gh-formatter:disable[-file|-line]` / `:enable`
-- **Recursive Discovery**: Automatically finds all workflow and action files in your project
+- **Recursive Discovery**: Automatically finds workflow and action files in your project — see [File discovery](#file-discovery) for exactly what counts
 
 ## Installation
 
@@ -85,6 +85,30 @@ Format the entire project (will find all actions and workflows):
 ```bash
 gh-formatter .
 ```
+
+### File discovery
+
+When given a **directory**, gh-formatter walks it and only touches:
+
+- YAML files placed directly in a `.github/workflows/` directory — the same
+  place GitHub itself reads workflows from. A sibling directory whose name
+  merely starts with `workflows` (e.g. `.github/workflows-templates/`) does
+  not count, and neither does a subdirectory nested *below*
+  `.github/workflows/` — GitHub ignores both, so gh-formatter does too.
+  This mirrors how actionlint locates workflow files.
+- `action.yml` / `action.yaml`, anywhere in the project — a repository can
+  publish an action from its root or from any subdirectory (`.github/actions/*/action.yml`
+  is a common layout, but not the only valid one), so these are matched by
+  filename rather than by location.
+
+Common dependency/build directories (`.git`, `.venv`, `venv`,
+`node_modules`, `__pycache__`, `.pytest_cache`, `build`, `dist`) are always
+skipped during the walk.
+
+A **file** passed directly as an argument is always processed, regardless
+of its name or location — the same as pointing any formatter at an
+explicit path. This is how this project's own CI formats its `examples/`
+directory even though those files live outside `.github/workflows/`.
 
 ### Check Mode (Dry Run)
 
