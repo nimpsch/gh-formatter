@@ -52,7 +52,7 @@ def _walk_directory(directory: Path) -> set[Path]:
         # Prune ignored directories in-place
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
 
-        is_workflow_dir = ".github/workflows" in Path(root).as_posix()
+        is_workflow_dir = _is_workflow_dir(Path(root))
 
         for file in files:
             name = file.lower()
@@ -62,3 +62,17 @@ def _walk_directory(directory: Path) -> set[Path]:
                 found.add((Path(root) / file).resolve())
 
     return found
+
+
+def _is_workflow_dir(root: Path) -> bool:
+    """True when `root` is exactly a `.github/workflows` directory.
+
+    GitHub only treats YAML files placed directly in `.github/workflows/`
+    as workflows -- a sibling like `.github/workflows-templates/` or a
+    nested subdirectory is not a workflows folder, matching actionlint's
+    own discovery rule. A substring check (the previous approach) would
+    wrongly match `.github/workflows-templates` because that path contains
+    the text ".github/workflows" as a prefix; comparing path *segments*
+    instead of raw text avoids that false positive.
+    """
+    return root.parts[-2:] == (".github", "workflows")
