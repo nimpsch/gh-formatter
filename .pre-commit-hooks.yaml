@@ -5,4 +5,5 @@
   language: python
   types: [yaml]
   files: (^.github/workflows/.*\.ya?ml|action\.ya?ml)$
+  require_serial: true
   minimum_pre_commit_version: "2.9.2"

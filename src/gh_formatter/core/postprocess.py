@@ -123,7 +123,7 @@ class _BlankLineScanner:
         self._maybe_separate(stripped, indent, is_content)
         if is_content and indent == 0 and ":" in stripped:
             if self.saw_root_key and self.config.blank_line_between_sections:
-                _insert_blank_before(self.result)
+                _insert_blank_before(self.result, indent)
             self.saw_root_key = True
         self.result.append(line)
 
@@ -199,9 +199,9 @@ class _BlankLineScanner:
             # ruamel places sequence dashes at key indent + offset
             self.step_dash_col = indent + self.config.sequence_offset
         elif self._starts_new_step(stripped, indent):
-            _insert_blank_before(self.result, opener="steps:")
+            _insert_blank_before(self.result, indent, opener="steps:")
         elif self._starts_new_job(stripped, indent, is_content):
-            _insert_blank_before(self.result, opener="jobs:")
+            _insert_blank_before(self.result, indent, opener="jobs:")
 
     def _starts_new_step(self, stripped: str, indent: int) -> bool:
         return (
@@ -228,17 +228,32 @@ def _is_sequence_item(stripped: str) -> bool:
     return stripped == "-" or stripped.startswith("- ")
 
 
-def _insert_blank_before(result: list[str], opener: str | None = None) -> None:
+def _insert_blank_before(
+    result: list[str], indent: int, opener: str | None = None
+) -> None:
     """Inserts one blank line before the element about to be appended.
 
-    Comment lines directly above the element belong to it, so the blank
-    goes above them. Nothing is inserted at the start of the document, when
-    a blank is already present, after the ``---`` document marker, or after
-    the container opener (``steps:``/``jobs:``, passed as ``opener``) -- in
+    A comment line sitting at the same column as the element (a lead-in
+    written above it, e.g. ``# explains the next step``) belongs to it, so
+    the blank goes above that comment too. A comment indented deeper --
+    the previous sibling's own trailing content, e.g. a note inside its
+    ``with:`` block -- is not a lead-in and must not be walked past, or its
+    separating blank would end up on the wrong side of it and the comment
+    would visually attach to this element instead of the previous one.
+    Nothing is inserted at the start of the document, when a blank is
+    already present, after the ``---`` document marker, or after the
+    container opener (``steps:``/``jobs:``, passed as ``opener``) -- in
     those cases there is no prior sibling to separate from.
     """
     insert_at = len(result)
-    while insert_at > 0 and result[insert_at - 1].lstrip().startswith("#"):
+    while insert_at > 0:
+        candidate = result[insert_at - 1]
+        stripped_candidate = candidate.lstrip()
+        if not stripped_candidate.startswith("#"):
+            break
+        candidate_indent = len(candidate) - len(stripped_candidate)
+        if candidate_indent != indent:
+            break
         insert_at -= 1
     if insert_at == 0:
         return

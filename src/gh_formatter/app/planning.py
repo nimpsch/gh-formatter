@@ -4,7 +4,10 @@ When a formatting run renames the inputs of a reusable workflow or a
 local action, every caller inside the same repository references those
 inputs through `uses: ./...` plus a `with:` block. The plan built here
 records the renames per target file so the caller side can be updated
-consistently — but only for targets that are part of the same run.
+consistently. The plan scans every workflow/action file in each passed
+file's repository (see `_plan_scope`), not just the files being
+formatted, so a partial run -- e.g. a pre-commit hook that only passes
+staged files -- still resolves callers against their real target.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from gh_formatter.core.rules.inputs import (
     plan_input_renames,
 )
 from gh_formatter.core.yaml_io import load_yaml
+from gh_formatter.io.discovery import find_yaml_files
 
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 
@@ -90,13 +94,19 @@ class CallerInterface:
 
 
 def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:
-    """Records each local target's canonical declared input names."""
+    """Records each local target's canonical declared input names.
+
+    Scans every workflow/action file in each file's repository, not just
+    `files` itself -- a caller's target may not be part of a partial run
+    (e.g. pre-commit passing only staged files), and skipping it silently
+    would leave that caller's `with:` block unchecked and unfixed.
+    """
     plan = ProjectPlan()
     if config.caller_inputs == "ignore":
         return plan  # no cross-file checking needed
 
     naming_on = config.rule_enabled("input-naming")
-    for file_path in files:
+    for file_path in _plan_scope(files):
         try:
             content = file_path.read_text(encoding="utf-8")
             disable_file, disabled_lines = scan_disabled(content)
@@ -128,6 +138,21 @@ def build_project_plan(files: list[Path], config: Config) -> ProjectPlan:
             plan.secret_names[resolved] = secrets
 
     return plan
+
+
+def _plan_scope(files: list[Path]) -> list[Path]:
+    """`files` plus every workflow/action file in their repositories.
+
+    Only used to discover local targets' declared interfaces; which files
+    actually get formatted/checked is still exactly `files`.
+    """
+    roots = {
+        root for f in files if (root := find_repo_root(str(f))) is not None
+    }
+    scope = set(files)
+    for root in roots:
+        scope.update(find_yaml_files([str(root)]))
+    return sorted(scope)
 
 
 def find_repo_root(file_path: str | None) -> Path | None:
