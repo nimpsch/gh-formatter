@@ -401,6 +401,50 @@ jobs:
     )
 
 
+def test_trailing_step_comment_stays_with_its_step(engine):
+    """A comment indented at the step's content column (not the dash
+    column) documents that step's own body, not the next step -- its
+    separating blank line must stay below it, not move above it."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: first
+        run: echo hi
+        # end of first step notes
+
+      - name: second
+        run: echo bye
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert (
+        "echo hi\n        # end of first step notes\n\n      - name: Second"
+        in formatted
+    )
+    assert engine.format_string(formatted, _context()) == formatted
+
+
+def test_trailing_job_comment_stays_with_its_job(engine):
+    """Same as above, one level up: a comment inside a job's own body must
+    not be re-attached to the next job."""
+    workflow = """name: ci
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # this is the build job
+    steps:
+      - run: echo hi
+    # end of build job notes
+
+  deploy:
+    runs-on: ubuntu-latest
+"""
+    formatted, _ = fmt(engine, workflow)
+    assert "echo hi\n    # end of build job notes\n\n  deploy:" in formatted
+    assert engine.format_string(formatted, _context()) == formatted
+
+
 def _reparses(text):
     from gh_formatter.core.yaml_io import load_yaml
 

@@ -59,6 +59,18 @@ repos:
   - id: gh-formatter
 ```
 
+A pre-commit hook only ever sees staged/changed files, so if you rename an
+input in a reusable workflow or local action in one commit and its callers
+aren't touched in that same commit, they won't be fixed until they're next
+staged themselves (gh-formatter still checks them correctly against the
+current interface whenever that happens — see
+[Cross-file input consistency](#cross-file-input-consistency) — it just
+won't rewrite a file it wasn't asked to rewrite). Also run
+`gh-formatter --check .` over the whole repository periodically or in CI
+(this project does exactly that in its own
+[pre-commit config](.pre-commit-config.yaml)) as the safety net that catches
+any caller left stale by an incremental, hook-only run.
+
 ### Requirements
 
 - Python 3.11 or higher
@@ -318,8 +330,7 @@ on a mismatch so you fix both files (see
 `ignore` modes).
 
 With `caller_inputs: fix`, gh-formatter instead renames the caller's keys to
-match — when you run it on the repository root (`gh-formatter .`) so the
-definition and its callers are formatted together:
+match:
 
 ```yaml
 jobs:
@@ -329,9 +340,15 @@ jobs:
       commit-sha: abc123   # fixed to match the template's input
 ```
 
-Either way, only `uses: ./...` references whose target is part of the same
-run are considered — marketplace actions (`actions/checkout@v4`) are never
-touched.
+Either way, gh-formatter resolves a `uses: ./...` target by scanning every
+workflow/action file in the caller's repository, not just the files passed
+on the command line — so this works even when only the caller itself is
+being formatted (e.g. a pre-commit hook that only sees staged files). Only
+files it cannot place in any repository, and marketplace actions
+(`actions/checkout@v4`), are left unchecked. Note that only the files you
+actually pass get *written*: fixing a caller doesn't rewrite its target, and
+vice versa — pass both (or run on the repo root) to update them together in
+one pass.
 
 To turn off input renaming of definitions entirely:
 
@@ -345,8 +362,9 @@ rules:
 When a caller passes a `with:` key that the local target does not declare —
 typically a casing or rename that drifted between the two files — gh-formatter
 acts according to the `caller_inputs` option. Only local references
-(`uses: ./...`) whose target is part of the same run are considered;
-marketplace actions (`actions/checkout@v4`) are never checked.
+(`uses: ./...`) are considered, resolved against every workflow/action file
+in the caller's repository regardless of which files were passed on the
+command line; marketplace actions (`actions/checkout@v4`) are never checked.
 
 ```yaml
 # .gh-formatter.yml

@@ -14,8 +14,10 @@ input and secret the target declares -- optional ones included -- so the
 call site documents the full interface. ``secrets: inherit`` satisfies the
 secrets side.
 
-Only local references (`uses: ./...`) whose target is part of the same run
-are considered; marketplace actions are never touched.
+Only local references (`uses: ./...`) are considered, resolved against
+every workflow/action file in the caller's repository (see
+`app.planning._plan_scope`) regardless of which files this run was asked to
+format; marketplace actions are never touched.
 """
 
 from __future__ import annotations

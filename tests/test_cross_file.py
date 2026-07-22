@@ -114,9 +114,17 @@ def test_caller_with_keys_follow_action_input_rename(repo):
     assert "nodeVersion" not in caller
 
 
-def test_caller_untouched_when_target_not_in_run(repo):
-    """Formatting only the caller must not rename its with: keys."""
-    config = Config()
+def test_caller_renamed_when_only_caller_is_passed(repo):
+    """Formatting only the caller still renames its with: keys.
+
+    A caller's target must be discovered from the repository even when it
+    is not part of the files passed on the command line -- this is exactly
+    what a pre-commit hook does, since it only passes staged/changed files.
+    Previously the plan only knew about explicitly-passed files, so this
+    (very common) partial run silently skipped renaming/checking the
+    caller's with: block.
+    """
+    config = Config({"caller_inputs": "fix"})
     engine = Engine()
     caller_file = repo / ".github" / "workflows" / "caller.yml"
     plan = build_project_plan([caller_file], config)
@@ -125,8 +133,37 @@ def test_caller_untouched_when_target_not_in_run(repo):
     )
 
     caller = caller_file.read_text(encoding="utf-8")
+    assert "commit-sha: abc123" in caller
+    assert "commitSha" not in caller
+    assert 'node-version: "20"' in caller
+    assert "nodeVersion" not in caller
+
+
+def test_caller_untouched_when_target_outside_repo(tmp_path):
+    """A caller whose target isn't findable in its repo is left alone."""
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    caller_file = workflows / "caller.yml"
+    caller_file.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/nonexistent.yml
+    with:
+      commitSha: abc123
+""",
+        encoding="utf-8",
+    )
+    config = Config()
+    engine = Engine()
+    plan = build_project_plan([caller_file], config)
+    process_file(
+        caller_file, engine, config, check=False, show_diff=False, plan=plan
+    )
+
+    caller = caller_file.read_text(encoding="utf-8")
     assert "commitSha: abc123" in caller
-    assert 'nodeVersion: "20"' in caller
 
 
 def test_external_uses_never_touched(repo):
