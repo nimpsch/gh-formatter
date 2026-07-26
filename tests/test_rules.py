@@ -343,6 +343,33 @@ on:
     assert engine.format_string(formatted, context) == formatted
 
 
+def test_alphabetize_comment_above_nested_entry_travels_with_it(engine):
+    # Regression test: a comment above a nested-mapping-valued entry (e.g. a
+    # workflow_dispatch input with description/type) used to stay behind at
+    # its old position instead of moving with the entry it documents, once
+    # that entry stopped being last after sorting.
+    workflow = """name: ci
+on:
+  workflow_dispatch:
+    inputs:
+      # explains zeta
+      zeta:
+        description: "Zeta input"
+        type: string
+      # explains alpha
+      alpha:
+        description: "Alpha input"
+        type: string
+"""
+    context = Context(".github/workflows/ci.yml", Config())
+    formatted = engine.format_string(workflow, context)
+
+    assert "# explains alpha\n      alpha:" in formatted
+    assert "# explains zeta\n      zeta:" in formatted
+    assert formatted.index("alpha:") < formatted.index("zeta:")
+    assert engine.format_string(formatted, context) == formatted
+
+
 def test_alphabetize_disabled_via_empty_list(engine):
     workflow = """name: ci
 env:

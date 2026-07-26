@@ -199,16 +199,15 @@ def _rebuild_comments(
 ) -> None:
     """Re-attaches comment tokens so each rides the line it documents."""
     for idx, key in enumerate(new_order[:-1]):
-        token = _build_post_token(
-            layout.eol.get(key), layout.pre[new_order[idx + 1]]
-        )
-        if key in layout.blank_keys:
-            token = _with_blank_tail(token)
-        token = _adjust_for_value(token, data[key])
-        if token is not None:
-            data.ca.items[key] = [None, None, token, None]
+        following = layout.pre[new_order[idx + 1]]
+        blank = key in layout.blank_keys
+        _attach_following(data, key, layout.eol.get(key), following, blank)
 
-    _finish_last_key(data, new_order[-1], layout)
+    last_key = new_order[-1]
+    blank = layout.trailing_blank or last_key in layout.blank_keys
+    _attach_following(
+        data, last_key, layout.eol.get(last_key), layout.trailing, blank
+    )
 
     # Comments before the first key have no preceding key to ride on.
     first = new_order[0]
@@ -218,30 +217,34 @@ def _rebuild_comments(
         item[1] = [CommentToken(value, CommentMark(0))]
 
 
-def _finish_last_key(
-    data: CommentedMap, key: Any, layout: _CommentLayout
+def _attach_following(
+    data: CommentedMap,
+    key: Any,
+    eol: tuple[str, int] | None,
+    following: list[str],
+    blank: bool,
 ) -> None:
-    """Attaches trailing comments/blanks after the (new) last entry.
+    """Attaches a key's eol comment plus the lines that must render after it.
 
     On a scalar-valued key the index-2 token renders after the value, but on
     a container-valued key it renders directly after the key line -- before
-    the nested block -- so trailing content must ride the container's
-    deepest last entry to actually appear at the end.
+    the nested block -- so lines meant to follow the whole entry (the next
+    key's pre-comment, or the trailing block for the last key) must ride the
+    container's deepest last entry to actually appear after it.
 
-    A key that carried a blank separator (``blank_keys``) and was reordered
-    into the last slot keeps that blank as the mapping's trailing separator,
-    rather than losing it because there is no longer a following sibling.
+    A key that carried a blank separator (``blank_keys``/``trailing_blank``)
+    keeps that blank riding with it even when reordered into the last slot,
+    where there is no longer a following sibling to separate it from.
     """
-    blank = layout.trailing_blank or key in layout.blank_keys
     slot_info = _deep_tail_slot(data[key])
-    if slot_info is not None and (layout.trailing or blank):
-        token = _build_post_token(layout.eol.get(key), [])
+    if slot_info is not None and (following or blank):
+        token = _build_post_token(eol, [])
         if token is not None:
             data.ca.items[key] = [None, None, token, None]
-        _append_deep_lines(slot_info, layout.trailing, blank)
+        _append_deep_lines(slot_info, following, blank)
         return
 
-    token = _build_post_token(layout.eol.get(key), layout.trailing)
+    token = _build_post_token(eol, following)
     if blank:
         token = _with_blank_tail(token)
     token = _adjust_for_value(token, data[key])
