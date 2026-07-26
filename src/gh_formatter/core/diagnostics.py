@@ -19,7 +19,14 @@ class Severity(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Diagnostic:
-    """A single finding surfaced to the user, tied to the file it came from."""
+    """A single finding surfaced to the user, tied to the file it came from.
+
+    ``line``/``column`` are 1-based (editor convention) and ``None`` when the
+    finding has no single YAML location (e.g. a required input that is
+    missing entirely).
+    """
 
     severity: Severity
     message: str
+    line: int | None = None
+    column: int | None = None

@@ -37,13 +37,29 @@ class Context:
         self.frozen_keys: dict[int, set[str]] = {}
         self.ignored_ids: set[int] = set()
 
-    def add_warning(self, message: str) -> None:
+    def add_warning(
+        self,
+        message: str,
+        *,
+        line: int | None = None,
+        column: int | None = None,
+    ) -> None:
         """Records a warning to be surfaced to the user."""
-        self.diagnostics.append(Diagnostic(Severity.WARNING, message))
+        self.diagnostics.append(
+            Diagnostic(Severity.WARNING, message, line, column)
+        )
 
-    def add_error(self, message: str) -> None:
+    def add_error(
+        self,
+        message: str,
+        *,
+        line: int | None = None,
+        column: int | None = None,
+    ) -> None:
         """Records a lint error that must be fixed (fails the run)."""
-        self.diagnostics.append(Diagnostic(Severity.ERROR, message))
+        self.diagnostics.append(
+            Diagnostic(Severity.ERROR, message, line, column)
+        )
 
     @property
     def warnings(self) -> list[str]:

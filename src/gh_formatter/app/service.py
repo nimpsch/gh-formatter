@@ -12,9 +12,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from ruamel.yaml.error import MarkedYAMLError, StreamMark
+
 from gh_formatter.app.planning import ProjectPlan
 from gh_formatter.config import Config
 from gh_formatter.core.context import Context
+from gh_formatter.core.diagnostics import Diagnostic, Severity
 from gh_formatter.core.pipeline import Engine
 from gh_formatter.io.files import read_source, write_source
 
@@ -29,8 +32,34 @@ class FileStatus(Enum):
 class FileResult:
     status: FileStatus
     message: str
-    warnings: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
+    diagnostics: list[Diagnostic] = field(default_factory=list)
+    # Location of `message` itself, when it's a single located failure (a
+    # YAML syntax error) rather than a per-diagnostic finding.
+    line: int | None = None
+    column: int | None = None
+
+    @property
+    def warnings(self) -> list[str]:
+        """Warning messages, in the order they were recorded."""
+        return [
+            d.message
+            for d in self.diagnostics
+            if d.severity is Severity.WARNING
+        ]
+
+    @property
+    def errors(self) -> list[str]:
+        """Error messages, in the order they were recorded."""
+        return [
+            d.message for d in self.diagnostics if d.severity is Severity.ERROR
+        ]
+
+
+def _mark_location(mark: StreamMark | None) -> tuple[int | None, int | None]:
+    """A ruamel mark's 1-based (line, column), or (None, None) if absent."""
+    if mark is None:
+        return None, None
+    return mark.line + 1, mark.column + 1
 
 
 def process_file(
@@ -52,20 +81,25 @@ def process_file(
 
     try:
         formatted = engine.format_string(source.content, context)
+    except MarkedYAMLError as e:
+        line, column = _mark_location(e.problem_mark)
+        return FileResult(
+            FileStatus.ERROR,
+            f"Invalid YAML: {e.problem or e}",
+            context.diagnostics,
+            line,
+            column,
+        )
     except Exception as e:
         return FileResult(
             FileStatus.ERROR,
             f"Failed to parse/format file: {e}",
-            context.warnings,
-            context.errors,
+            context.diagnostics,
         )
 
     if source.content == formatted and not source.needs_newline_fix:
         return FileResult(
-            FileStatus.UNCHANGED,
-            "Already formatted",
-            context.warnings,
-            context.errors,
+            FileStatus.UNCHANGED, "Already formatted", context.diagnostics
         )
 
     if show_diff:
@@ -76,30 +110,21 @@ def process_file(
             tofile=f"b/{file_path.name}",
         )
         return FileResult(
-            FileStatus.CHANGED, "".join(diff), context.warnings, context.errors
+            FileStatus.CHANGED, "".join(diff), context.diagnostics
         )
 
     if check:
         return FileResult(
-            FileStatus.CHANGED,
-            "Needs formatting",
-            context.warnings,
-            context.errors,
+            FileStatus.CHANGED, "Needs formatting", context.diagnostics
         )
 
     try:
         write_source(file_path, formatted, source.newline)
     except Exception as e:
         return FileResult(
-            FileStatus.ERROR,
-            f"Failed to write file: {e}",
-            context.warnings,
-            context.errors,
+            FileStatus.ERROR, f"Failed to write file: {e}", context.diagnostics
         )
 
     return FileResult(
-        FileStatus.CHANGED,
-        "Formatted successfully",
-        context.warnings,
-        context.errors,
+        FileStatus.CHANGED, "Formatted successfully", context.diagnostics
     )

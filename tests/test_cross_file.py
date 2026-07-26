@@ -246,6 +246,35 @@ jobs:
     assert not any("'commit-sha' is not" in e for e in errors)
 
 
+def test_caller_undeclared_input_error_has_location(repo):
+    """The diagnostic for an undeclared with: key points at its own line."""
+    caller = repo / ".github" / "workflows" / "caller.yml"
+    caller.write_text(
+        """name: Caller
+on: push
+jobs:
+  call_template:
+    uses: ./.github/workflows/template.yml
+    with:
+      commit-sha: abc123
+      bogus-input: nope
+""",
+        encoding="utf-8",
+    )
+    config = Config()
+    engine = Engine()
+    files = sorted(repo.rglob("*.yml"))
+    plan = build_project_plan(files, config)
+    result = next(
+        process_file(f, engine, config, check=True, show_diff=False, plan=plan)
+        for f in files
+        if f.name == "caller.yml"
+    )
+    diag = next(d for d in result.diagnostics if "bogus-input" in d.message)
+    # "      bogus-input: nope" is line 8, column 7 in the file above.
+    assert (diag.line, diag.column) == (8, 7)
+
+
 def test_caller_input_casing_mismatch_suggests(repo):
     """A near-miss (casing/separator) yields a did-you-mean suggestion."""
     # Target already declares the canonical name; the caller drifted to

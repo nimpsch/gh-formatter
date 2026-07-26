@@ -39,7 +39,7 @@ class JobNamingRule(BaseRule):
             return
 
         renames = compute_safe_renames(
-            list(jobs_map.keys()),
+            jobs_map,
             context.config.job_casing,
             context,
             "job",

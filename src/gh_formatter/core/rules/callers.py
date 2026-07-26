@@ -29,7 +29,13 @@ from ruamel.yaml.comments import CommentedMap
 
 from gh_formatter.core.context import Context
 from gh_formatter.core.rules.base import BaseRule
-from gh_formatter.core.tree import get_map, get_seq, rename_commented_map_keys
+from gh_formatter.core.tree import (
+    get_map,
+    get_seq,
+    key_location,
+    node_location,
+    rename_commented_map_keys,
+)
 
 if TYPE_CHECKING:
     from gh_formatter.app.planning import CallerInterface
@@ -144,10 +150,13 @@ def _check_block(
         passed = set(block.keys()) if block is not None else set()
         # A declared name already suggested as the fix for a mismatched key
         # is covered by that error; reporting it as missing too is noise.
+        location = node_location(block) if block is not None else None
         for name in sorted(declared - passed - suggested):
             context.add_error(
                 f"{label}: '{name}' declared by local target '{uses}' is "
-                f"not passed explicitly - pass it even if a default exists"
+                f"not passed explicitly - pass it even if a default exists",
+                line=location[0] if location else None,
+                column=location[1] if location else None,
             )
 
 
@@ -168,16 +177,21 @@ def _fix_keys(
         if key in declared:
             continue
         match = _closest_name(key, declared)
+        location = key_location(block, key)
         if match is None:
             context.add_error(
                 f"{label}: '{key}' is not declared by local target "
-                f"'{uses}' and has no close match - fix it manually"
+                f"'{uses}' and has no close match - fix it manually",
+                line=location[0] if location else None,
+                column=location[1] if location else None,
             )
             continue
         if match in block:
             context.add_warning(
                 f"Skipped fixing '{key}' in {label}: of '{uses}': "
-                f"'{match}' is already present"
+                f"'{match}' is already present",
+                line=location[0] if location else None,
+                column=location[1] if location else None,
             )
             continue
         renames[key] = match
@@ -206,9 +220,12 @@ def _report_keys(
         if match is not None:
             suggested.add(match)
         hint = f" (did you mean '{match}'?)" if match else ""
+        location = key_location(block, key)
         context.add_error(
             f"{label}: input '{key}' is not declared by local target "
-            f"'{uses}'{hint} - fix it in both files"
+            f"'{uses}'{hint} - fix it in both files",
+            line=location[0] if location else None,
+            column=location[1] if location else None,
         )
     return suggested
 

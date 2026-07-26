@@ -79,6 +79,9 @@ runs:
     assert "description: first" in formatted
     assert "description: second" in formatted
     assert any("my_input" in w for w in context.warnings)
+    diag = next(d for d in context.diagnostics if "my_input" in d.message)
+    # "  my_input:" is line 5, column 3 in the action above.
+    assert (diag.line, diag.column) == (5, 3)
 
 
 def test_reference_suffix_not_clobbered(engine):
