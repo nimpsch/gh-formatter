@@ -27,7 +27,7 @@ repos:
     hooks:
       - id: mypy
         files: ^src/
-        additional_dependencies: [ruamel.yaml]
+        additional_dependencies: [ruamel.yaml, pygls]
 
   # gh-formatter self-check (whole repo, so cross-file renames are seen).
   # Runs before yamllint so the linter sees the formatted output.
