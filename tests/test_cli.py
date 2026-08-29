@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 
@@ -82,6 +83,36 @@ name: Workflow
         text=True,
     )
     assert result_check_again.returncode == 0
+
+
+def test_cli_reports_invalid_yaml_location(tmp_path):
+    # An unclosed flow sequence should surface as file:line:col -- the shape
+    # editors (e.g. VS Code's terminal) turn into a clickable link.
+    workflow_file = tmp_path / "build.yml"
+    workflow_file.write_text(
+        """name: ci
+on:
+  push:
+    branches: [main
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gh_formatter.cli",
+            str(workflow_file),
+            "--check",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert re.search(
+        r"\[ERROR\] .*build\.yml:\d+:\d+ - Invalid YAML", result.stdout
+    )
 
 
 def test_exit_code():

@@ -11,6 +11,7 @@ from gh_formatter import __version__
 from gh_formatter.app.planning import build_project_plan
 from gh_formatter.app.service import FileResult, FileStatus, process_file
 from gh_formatter.config import Config, ConfigError
+from gh_formatter.core.diagnostics import Severity
 from gh_formatter.core.pipeline import Engine
 from gh_formatter.io.discovery import find_yaml_files
 
@@ -136,13 +137,32 @@ def _format_files(
             counts.errors += 1
         elif result.status is FileStatus.CHANGED:
             counts.changed += 1
-        for error in result.errors:
+        for diag in result.diagnostics:
+            if diag.severity is not Severity.ERROR:
+                continue
             counts.lint_errors += 1
-            print(f"[error] {rel_path} - {error}")
-        for warning in result.warnings:
+            loc = _locate(rel_path, diag.line, diag.column)
+            print(f"[error] {loc} - {diag.message}")
+        for diag in result.diagnostics:
+            if diag.severity is not Severity.WARNING:
+                continue
             counts.warnings += 1
-            print(f"[warn] {rel_path} - {warning}")
+            loc = _locate(rel_path, diag.line, diag.column)
+            print(f"[warn] {loc} - {diag.message}")
     return counts
+
+
+def _locate(rel_path: str, line: int | None, column: int | None) -> str:
+    """`rel_path` with a `:line:column` suffix, when a location is known.
+
+    Editors (including VS Code's integrated terminal) recognize this
+    `path:line:column` shape and turn it into a clickable link.
+    """
+    if line is None:
+        return rel_path
+    if column is None:
+        return f"{rel_path}:{line}"
+    return f"{rel_path}:{line}:{column}"
 
 
 def _report_file(
@@ -150,7 +170,8 @@ def _report_file(
 ) -> None:
     """Prints the one-line status for a processed file."""
     if result.status is FileStatus.ERROR:
-        print(f"[ERROR] {rel_path} - {result.message}")
+        loc = _locate(rel_path, result.line, result.column)
+        print(f"[ERROR] {loc} - {result.message}")
     elif result.status is FileStatus.CHANGED:
         if args.diff:
             print(f"\n--- Diff for {rel_path} ---")

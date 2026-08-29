@@ -28,6 +28,23 @@ def get_seq(parent: Any, key: str) -> CommentedSeq | None:
     return value if isinstance(value, CommentedSeq) else None
 
 
+def key_location(mapping: Any, key: Any) -> tuple[int, int] | None:
+    """The 1-based (line, column) a mapping's key was written at, if known."""
+    lc_data = getattr(getattr(mapping, "lc", None), "data", None)
+    info = lc_data.get(key) if lc_data else None
+    if info is None:
+        return None
+    return info[0] + 1, info[1] + 1
+
+
+def node_location(node: Any) -> tuple[int, int] | None:
+    """The 1-based (line, column) a mapping/sequence itself starts at."""
+    lc = getattr(node, "lc", None)
+    if lc is None or lc.line is None:
+        return None
+    return lc.line + 1, lc.col + 1
+
+
 def restyle_scalar(original: str, new: str) -> str:
     """Wraps `new` in the same scalar style class as `original`.
 

@@ -2,7 +2,10 @@
 
 import re
 
+from ruamel.yaml.comments import CommentedMap
+
 from gh_formatter.core.context import Context
+from gh_formatter.core.tree import key_location
 
 # Split camelCase/PascalCase at word boundaries; keeps acronyms intact
 # (myURLInput -> my-URL-Input, not my-U-R-L-Input).
@@ -43,7 +46,7 @@ def format_casing(name: str, target: str) -> str:
 
 
 def compute_safe_renames(
-    keys: list[str],
+    mapping: CommentedMap,
     target_casing: str,
     context: Context,
     kind: str,
@@ -57,6 +60,7 @@ def compute_safe_renames(
     ``preserve_uppercase``, env-var style names (SERVER_IMAGE) keep their
     uppercase form and only have separators normalized to underscores.
     """
+    keys = list(mapping.keys())
     existing = set(keys)
     renames: dict[str, str] = {}
     targets: set[str] = set()
@@ -69,9 +73,12 @@ def compute_safe_renames(
         if formatted == key:
             continue
         if formatted in existing or formatted in targets:
+            location = key_location(mapping, key)
             context.add_warning(
                 f"Skipped renaming {kind} '{key}' to '{formatted}': "
-                "the target name is already in use"
+                "the target name is already in use",
+                line=location[0] if location else None,
+                column=location[1] if location else None,
             )
             continue
         renames[key] = formatted

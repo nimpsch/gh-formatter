@@ -101,7 +101,7 @@ def _renames_for_inputs_map(
 ) -> dict[str, str]:
     """Safe renames for one inputs map, skipping directive-frozen keys."""
     renames = compute_safe_renames(
-        list(inputs_map.keys()),
+        inputs_map,
         context.config.input_casing,
         context,
         "input",
