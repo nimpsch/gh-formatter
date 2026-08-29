@@ -1,0 +1,79 @@
+{
+  "name": "gh-formatter-vscode",
+  "displayName": "gh-formatter",
+  "description": "Format and lint GitHub Actions workflow/action YAML files",
+  "version": "0.1.3",
+  "publisher": "nimpsch",
+  "icon": "images/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nimpsch/gh-formatter"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Formatters",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:yaml",
+    "onLanguage:github-actions-workflow"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "gh-formatter",
+      "properties": {
+        "gh-formatter.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the gh-formatter language server."
+        },
+        "gh-formatter.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Explicit path to a gh-formatter-lsp executable. Overrides importStrategy when set."
+        },
+        "gh-formatter.importStrategy": {
+          "type": "string",
+          "enum": [
+            "useBundled",
+            "fromEnvironment"
+          ],
+          "enumDescriptions": [
+            "Run the copy of gh-formatter bundled with this extension (a Python interpreter is still required, but nothing needs to be pip-installed).",
+            "Use gh-formatter-lsp already installed in your project's .venv or on PATH -- matches the version pinned by your pre-commit/CI setup."
+          ],
+          "default": "useBundled",
+          "description": "Which copy of gh-formatter the language server runs."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "gh-formatter.setDefaultFormatter",
+        "title": "gh-formatter: Set as Default Formatter for YAML/GitHub Actions Files"
+      }
+    ]
+  },
+  "scripts": {
+    "vendor": "bash scripts/vendor_libs.sh",
+    "sync-version": "node scripts/sync_version.mjs",
+    "typecheck": "tsc --noEmit -p ./",
+    "typecheck:watch": "tsc --noEmit -w -p ./",
+    "compile": "npm run typecheck && node scripts/esbuild.mjs",
+    "watch:esbuild": "node scripts/esbuild.mjs --watch",
+    "vscode:prepublish": "npm run sync-version && npm run vendor && npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

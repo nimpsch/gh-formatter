@@ -453,6 +453,125 @@ source of truth, so the formatter can't produce output its own linter rejects.
 If yamllint leaves the width as `consistent`, there is nothing concrete to
 copy and gh-formatter keeps its configured indentation.
 
+## Editor Integration (VSCode / LSP)
+
+gh-formatter ships a Language Server Protocol server (`gh-formatter-lsp`,
+built on [pygls](https://github.com/openlawlibrary/pygls)) and a companion
+VSCode extension ([`editors/vscode/`](editors/vscode/)), so workflow/action
+YAML files get:
+
+- **Format on save**, driven by VSCode's own document-formatting flow.
+- **Inline diagnostics** (parse errors and lint findings) refreshed when a
+  file is **opened or saved** — not live as you type, so YAML mid-edit is
+  never linted.
+
+`pygls` is a core dependency, so `pip install gh-formatter` gives you
+`gh-formatter-lsp` for free — no separate install step. The server is
+reusable by any LSP-aware editor, not just VSCode; the extension itself is
+currently pre-Marketplace (install it locally as below).
+
+### How the VSCode extension finds gh-formatter
+
+Same two-strategy model as Microsoft's own Python tool extensions
+(`black-formatter`, `pylint`, ...), controlled by `gh-formatter.importStrategy`:
+
+- **`useBundled`** (default) — runs the copy of gh-formatter vendored
+  inside the extension package itself (`editors/vscode/bundled/libs/`,
+  populated by `scripts/vendor_libs.sh` at package time). You only need a
+  Python 3 interpreter on `PATH` (`python3`/`python`) — **nothing to
+  `pip install`**. This is what makes "just install the extension" work.
+- **`fromEnvironment`** — uses `gh-formatter-lsp` already installed in your
+  project's `.venv` (or on `PATH`), so the editor matches the exact version
+  pinned by your `pre-commit`/CI setup instead of whatever's bundled. If
+  none is found, falls back to the bundled copy with a warning — same
+  behavior as the `black-formatter`/`ruff` extensions' `importStrategy`.
+
+`gh-formatter.serverPath` overrides either strategy with an explicit path.
+
+### Installing the VSCode extension (pre-Marketplace)
+
+```bash
+cd editors/vscode
+npm install
+npm run compile
+```
+
+`compile` type-checks and bundles the extension (via esbuild) into a
+single `out/extension.js` — enough for **F5** (open `editors/vscode/` in
+VSCode, press F5 to launch an Extension Development Host), but not enough
+to test the `useBundled` default, which also needs `bundled/libs/`
+populated: `npm run vendor` (or just package it, below, which does both
+automatically).
+
+To package and sideload instead: `npx vsce package` (runs
+`sync-version` + `vendor` + `compile` automatically via
+`vscode:prepublish`), then
+`code --install-extension gh-formatter-vscode-0.1.3.vsix`.
+
+### Enabling format-on-save
+
+The extension registers as a formatter for workflow/action YAML files, but
+VSCode still needs your own `settings.json` to make it the default and turn
+on format-on-save. On first activation you'll get a one-time prompt
+offering to do this for you (see below for what it sets); to do it by hand
+instead:
+
+```json
+{
+  "[yaml]": {
+    "editor.defaultFormatter": "nimpsch.gh-formatter-vscode",
+    "editor.formatOnSave": true
+  },
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "nimpsch.gh-formatter-vscode",
+    "editor.formatOnSave": true
+  }
+}
+```
+
+Both blocks are needed because of an editor quirk: GitHub's own
+[GitHub Actions extension](https://marketplace.visualstudio.com/items?itemName=GitHub.vscode-github-actions),
+if installed, reassigns workflow files to a separate language id,
+`github-actions-workflow`, instead of `yaml`. Without that extension,
+workflow files stay plain `yaml` and only the first block matters; with
+it, workflow files need the second block instead. Setting both covers
+either case. The trade-off: since this extension only *offers* to format
+the narrower set (`.github/workflows/**`, `action.yml`/`action.yaml`),
+setting `"[yaml]"` also makes it the default for *any* other YAML file you
+have open — if you use a different formatter for non-Actions YAML, skip
+that block (or decline the prompt and add only `"[github-actions-workflow]"`
+by hand).
+
+### Known limitations (v1)
+
+- Diagnostics refresh on open/save only — not live as you type.
+- Single-root workspaces only; in a multi-root workspace, only the first
+  folder's `.gh-formatter.yml` is used.
+- The bundled (default) strategy still needs *some* Python 3 interpreter
+  on `PATH` to run it — it removes the `pip install gh-formatter` step,
+  not the need for Python itself to exist on the machine.
+- VSCode's `editor.defaultFormatter` is keyed by language id, so enabling it
+  makes this extension the default formatter for *all* YAML, not just
+  workflow/action files — the extension only *offers* to format the
+  narrower set (`.github/workflows/**` and `action.yml`/`action.yaml`).
+  For other YAML, use "Format Document" on demand instead of relying on
+  format-on-save.
+
+### Publishing to the Marketplace
+
+This is a manual, maintainer-only step — never run on your behalf by an
+agent or CI:
+
+```bash
+cd editors/vscode
+npx vsce create-publisher <publisher-name>   # one-time
+npx vsce login <publisher-name>
+npx vsce publish
+```
+
+Requires your own [Marketplace publisher account](https://marketplace.visualstudio.com/manage)
+and personal access token.
+
 ## Examples
 
 See the `examples/` directory for sample workflow and action files:
@@ -530,9 +649,18 @@ gh-formatter/
 │       ├── app/                 # Application: frontend-agnostic orchestration
 │       │   ├── service.py       # process_file: read -> format -> write/report
 │       │   └── planning.py      # Cross-file caller/input planning
-│       └── io/                  # Infrastructure: filesystem only
-│           ├── files.py         # Read/write with line-ending policy
-│           └── discovery.py     # Workflow/action file discovery
+│       ├── io/                  # Infrastructure: filesystem only
+│       │   ├── files.py         # Read/write with line-ending policy
+│       │   └── discovery.py     # Workflow/action file discovery
+│       └── lsp/                 # Language Server (pygls), see below
+│           ├── core.py          # Pure helpers: format/lint in-memory text
+│           └── server.py        # gh-formatter-lsp: textDocument/formatting + diagnostics
+├── editors/vscode/          # Companion VSCode extension (vscode-languageclient)
+│   ├── src/extension.ts     # Client: resolves useBundled/fromEnvironment, spawns the server
+│   ├── scripts/esbuild.mjs      # Bundles extension.ts + deps into out/extension.js
+│   ├── scripts/sync_version.mjs # Copies __init__.py's __version__ into package.json
+│   ├── scripts/vendor_libs.sh   # Vendors gh-formatter + deps into bundled/libs (gitignored)
+│   └── bundled/tool/        # Bootstrap script the bundled strategy runs
 ├── tests/                   # Test suite
 ├── examples/                # Example workflow files
 └── README.md               # This file
